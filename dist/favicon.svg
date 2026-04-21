@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#4f46e5"/>
+      <stop offset="100%" stop-color="#7c3aed"/>
+    </linearGradient>
+    <linearGradient id="shine" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"   stop-color="rgba(255,255,255,0.18)"/>
+      <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Rounded square background -->
+  <rect width="64" height="64" rx="14" fill="url(#bg)"/>
+  <!-- Subtle shine overlay -->
+  <rect width="64" height="32" rx="14" fill="url(#shine)"/>
+
+  <!-- Keyboard rows  (3 rows of keys) -->
+  <!-- Row 1 — 4 small keys -->
+  <rect x="9"  y="14" width="10" height="8" rx="2.5" fill="rgba(255,255,255,0.22)"/>
+  <rect x="22" y="14" width="10" height="8" rx="2.5" fill="rgba(255,255,255,0.22)"/>
+  <rect x="35" y="14" width="10" height="8" rx="2.5" fill="rgba(255,255,255,0.22)"/>
+  <rect x="48" y="14" width="7"  height="8" rx="2.5" fill="rgba(255,255,255,0.22)"/>
+
+  <!-- Row 2 — 4 small keys -->
+  <rect x="9"  y="26" width="10" height="8" rx="2.5" fill="rgba(255,255,255,0.22)"/>
+  <rect x="22" y="26" width="10" height="8" rx="2.5" fill="rgba(255,255,255,0.22)"/>
+  <rect x="35" y="26" width="10" height="8" rx="2.5" fill="rgba(255,255,255,0.22)"/>
+  <rect x="48" y="26" width="7"  height="8" rx="2.5" fill="rgba(255,255,255,0.22)"/>
+
+  <!-- Row 3 — spacebar style wide key -->
+  <rect x="9"  y="38" width="46" height="8" rx="2.5" fill="rgba(255,255,255,0.30)"/>
+
+  <!-- Hindi "स" character centred on rows 1-2 as a subtle watermark -->
+  <text x="32" y="34" text-anchor="middle" dominant-baseline="middle"
+        font-family="Nirmala UI, Mangal, Arial Unicode MS, sans-serif"
+        font-size="11" font-weight="700" fill="rgba(255,255,255,0.0)">स</text>
+
+  <!-- Bottom accent line -->
+  <rect x="16" y="50" width="32" height="3" rx="1.5" fill="rgba(255,255,255,0.35)"/>
+</svg>
