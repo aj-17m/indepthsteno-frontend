@@ -77,7 +77,7 @@ export default function PracticePage() {
 
   // ── load tests ─────────────────────────────────────────────────────────────
   useEffect(() => {
-    api.get('/user/tests')
+    api.get('/user/practice-tests')
       .then(r => {
         setTests(r.data);
         if (testId) loadPracticeText(testId);

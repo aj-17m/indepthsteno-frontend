@@ -543,6 +543,11 @@ export default function AdminDashboard() {
     fetchAll();
   };
 
+  const togglePractice = async (id, cur) => {
+    await api.put(`/admin/tests/${id}`, { practiceEnabled: !cur });
+    fetchAll();
+  };
+
   const deleteTest = async (id) => {
     if (!confirm('Delete this test and all assignments?')) return;
     await api.delete(`/admin/tests/${id}`); fetchAll();
@@ -847,6 +852,12 @@ export default function AdminDashboard() {
                                   : { background:'var(--bg-surface)', color:'var(--text-3)', border:'1px solid var(--border)' }}>
                                 {t.isActive ? '● Active' : '○ Inactive'}
                               </span>
+                              <span className="text-xs px-2 py-0.5 rounded-full font-semibold"
+                                style={t.practiceEnabled
+                                  ? { background:'rgba(6,182,212,0.15)', color:'#22d3ee' }
+                                  : { background:'var(--bg-surface)', color:'var(--text-3)', border:'1px solid var(--border)' }}>
+                                {t.practiceEnabled ? '✏️ Practice On' : '✏️ Practice Off'}
+                              </span>
                               <span className="text-xs" style={{ color:'var(--text-3)' }}>
                                 {t.audioType === 'uploaded' ? '🎵 Custom audio' : '🤖 Generated'}
                               </span>
@@ -863,6 +874,13 @@ export default function AdminDashboard() {
                               ? { background:'rgba(245,158,11,0.12)', color:'#fbbf24', border:'1px solid rgba(245,158,11,0.20)' }
                               : { background:'rgba(16,185,129,0.12)',  color:'#34d399',  border:'1px solid rgba(16,185,129,0.22)' }}>
                             {t.isActive ? 'Deactivate' : 'Activate'}
+                          </button>
+                          <button onClick={() => togglePractice(t._id, t.practiceEnabled)}
+                            className="text-xs px-2.5 py-1.5 rounded-lg font-semibold transition hover:opacity-80"
+                            style={t.practiceEnabled
+                              ? { background:'rgba(6,182,212,0.15)', color:'#22d3ee', border:'1px solid rgba(6,182,212,0.25)' }
+                              : { background:'var(--bg-surface)', color:'var(--text-3)', border:'1px solid var(--border)' }}>
+                            {t.practiceEnabled ? '✏️ Practice On' : '✏️ Practice Off'}
                           </button>
                           <button onClick={() => openEditTest(t._id)}
                             className="text-xs px-2.5 py-1.5 rounded-lg font-semibold transition hover:opacity-80"
