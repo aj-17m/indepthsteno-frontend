@@ -9,6 +9,9 @@ import ThemeToggle from '../components/ThemeToggle';
 
 const PHASES = { SELECT:'select', AUDIO:'audio', TYPING:'typing', SUBMIT:'submitting' };
 
+// Derive backend origin so audio files load from Render in production
+const BACKEND_URL = (import.meta.env.VITE_API_URL || '/api').replace(/\/api$/, '');
+
 /* ── Modal ─────────────────────────────────────────────── */
 function Modal({ title, message, confirmLabel, onConfirm, onCancel, danger = false }) {
   return (
@@ -810,7 +813,7 @@ export default function TestPage() {
             </div>
 
             <CustomAudioPlayer
-              src={`/${test.audioPath}`}
+              src={`${BACKEND_URL}/${test.audioPath}`}
               maxReplays={test.maxReplays ?? 2}
               onEnded={handleAudioEnded}
             />
