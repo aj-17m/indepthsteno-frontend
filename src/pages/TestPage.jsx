@@ -14,11 +14,13 @@ const PHASES = { SELECT:'select', AUDIO:'audio', TYPING:'typing', SUBMIT:'submit
  * - New tests: audioPath is a full Cloudinary HTTPS URL  → use as-is
  * - Old tests: audioPath is "uploads/audio/xxx.mp3"      → prefix with backend origin
  */
-const BACKEND_URL = (import.meta.env.VITE_API_URL || '/api').replace(/\/api$/, '');
+const BACKEND_URL = (import.meta.env.VITE_API_URL || '').replace(/\/api\/?$/, '');
 function resolveAudioUrl(audioPath) {
   if (!audioPath) return '';
-  if (audioPath.startsWith('http')) return audioPath;          // Cloudinary URL
-  return `${BACKEND_URL}/${audioPath}`;                        // legacy local path
+  // Cloudinary / any absolute URL — return as-is, never prefix
+  if (audioPath.startsWith('http://') || audioPath.startsWith('https://')) return audioPath;
+  // Legacy path like "uploads/audio/xxx.mp3"
+  return `${BACKEND_URL}/${audioPath}`;
 }
 
 /* ── Modal ─────────────────────────────────────────────── */
