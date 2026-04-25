@@ -9,8 +9,17 @@ import ThemeToggle from '../components/ThemeToggle';
 
 const PHASES = { SELECT:'select', AUDIO:'audio', TYPING:'typing', SUBMIT:'submitting' };
 
-// Derive backend origin so audio files load from Render in production
+/**
+ * Build the audio src URL.
+ * - New tests: audioPath is a full Cloudinary HTTPS URL  → use as-is
+ * - Old tests: audioPath is "uploads/audio/xxx.mp3"      → prefix with backend origin
+ */
 const BACKEND_URL = (import.meta.env.VITE_API_URL || '/api').replace(/\/api$/, '');
+function resolveAudioUrl(audioPath) {
+  if (!audioPath) return '';
+  if (audioPath.startsWith('http')) return audioPath;          // Cloudinary URL
+  return `${BACKEND_URL}/${audioPath}`;                        // legacy local path
+}
 
 /* ── Modal ─────────────────────────────────────────────── */
 function Modal({ title, message, confirmLabel, onConfirm, onCancel, danger = false }) {
@@ -813,7 +822,7 @@ export default function TestPage() {
             </div>
 
             <CustomAudioPlayer
-              src={`${BACKEND_URL}/${test.audioPath}`}
+              src={resolveAudioUrl(test.audioPath)}
               maxReplays={test.maxReplays ?? 2}
               onEnded={handleAudioEnded}
             />
