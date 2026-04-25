@@ -5,7 +5,7 @@ import api from '../api/axios';
 import Leaderboard from '../components/Leaderboard';
 import ThemeToggle from '../components/ThemeToggle';
 
-const TABS = ['Tests', 'Categories', 'Users', 'Assignments', 'Results', 'Reviews'];
+const TABS = ['Tests', 'Practice', 'Categories', 'Users', 'Assignments', 'Results', 'Reviews'];
 
 /* ─── helpers ────────────────────────────────────────────── */
 const makeMsg = (text) => ({
@@ -458,6 +458,137 @@ function CreateTestForm({ tests, users, onCreated, categories }) {
         </button>
       </form>
     </div>
+  );
+}
+
+/* ─── Upload Practice-Only Content Form ─────────────────── */
+function PracticeUploadForm({ categories, onCreated }) {
+  const MODE_PDF  = 'pdf';
+  const MODE_TEXT = 'text';
+  const [mode,       setMode]       = useState(MODE_TEXT);
+  const [form,       setForm]       = useState({ title:'', timer:30, category:'' });
+  const [pdfFile,    setPdfFile]    = useState(null);
+  const [audioFile,  setAudioFile]  = useState(null);
+  const [masterText, setMasterText] = useState('');
+  const [previewing, setPreviewing] = useState(false);
+  const [uploading,  setUploading]  = useState(false);
+  const [msg,        setMsg]        = useState(null);
+
+  const handlePdfChange = async (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    setPdfFile(file); setMasterText(''); setPreviewing(true); setMsg(null);
+    const fd = new FormData(); fd.append('pdf', file);
+    try {
+      const r = await api.post('/admin/preview-pdf', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      setMasterText(r.data.text || '');
+    } catch (err) { setMsg(makeMsg('Failed to extract PDF text')); }
+    finally { setPreviewing(false); }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!form.title.trim() || !masterText.trim()) return;
+    setUploading(true); setMsg(null);
+    const fd = new FormData();
+    fd.append('title',      form.title.trim());
+    fd.append('timer',      form.timer);
+    fd.append('category',   form.category || '');
+    fd.append('masterText', masterText.trim());
+    if (mode === MODE_PDF && pdfFile) fd.append('pdf', pdfFile);
+    if (audioFile) fd.append('audio', audioFile);
+    try {
+      await api.post('/admin/upload-practice', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      setMsg(makeMsg('Practice content created successfully!'));
+      setForm({ title:'', timer:30, category:'' });
+      setPdfFile(null); setAudioFile(null); setMasterText('');
+      onCreated();
+    } catch (err) { setMsg(makeMsg(err.response?.data?.message || 'Upload failed')); }
+    finally { setUploading(false); }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Mode toggle */}
+      <div className="flex rounded-xl p-1" style={{ background:'var(--bg-card)' }}>
+        {[{ v:MODE_TEXT, label:'✍️ Paste Text' }, { v:MODE_PDF, label:'📄 Upload PDF' }].map(opt => (
+          <button key={opt.v} type="button" onClick={() => setMode(opt.v)}
+            className="flex-1 py-2 px-3 rounded-lg text-sm font-semibold transition-all"
+            style={mode === opt.v
+              ? { background:'var(--bg-surface)', color:'#6366f1' }
+              : { background:'transparent', color:'var(--text-2)' }}>
+            {opt.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Title */}
+      <div>
+        <label className="block mb-1 text-xs font-bold uppercase tracking-wider" style={{ color:'var(--text-3)' }}>Title *</label>
+        <ThemedInput type="text" required value={form.title}
+          onChange={e => setForm({...form, title:e.target.value})}
+          placeholder="e.g. Hindi Practice Set 1" />
+      </div>
+
+      {/* PDF upload */}
+      {mode === MODE_PDF && (
+        <div>
+          <label className="block mb-1 text-xs font-bold uppercase tracking-wider" style={{ color:'var(--text-3)' }}>PDF File *</label>
+          <input type="file" accept="application/pdf" onChange={handlePdfChange}
+            className="file-input-dark w-full text-sm" style={{ color:'var(--text-2)' }} />
+          {previewing && <p className="text-xs mt-1 animate-pulse" style={{ color:'#6366f1' }}>Extracting text…</p>}
+        </div>
+      )}
+
+      {/* Text passage */}
+      {(mode === MODE_TEXT || masterText) && (
+        <div>
+          <label className="block mb-1 text-xs font-bold uppercase tracking-wider" style={{ color:'var(--text-3)' }}>
+            Hindi Text * {mode === MODE_PDF && '(extracted — edit if needed)'}
+          </label>
+          <ThemedTextarea rows={6} required value={masterText}
+            onChange={e => setMasterText(e.target.value)}
+            placeholder="हिन्दी में अनुच्छेद यहाँ paste करें…"
+            style={{ fontFamily:'Nirmala UI, Mangal, sans-serif', fontSize:'15px' }} />
+        </div>
+      )}
+
+      {/* Timer */}
+      <div>
+        <label className="block mb-1 text-xs font-bold uppercase tracking-wider" style={{ color:'var(--text-3)' }}>Timer (minutes)</label>
+        <ThemedInput type="number" min={1} max={120} value={form.timer}
+          onChange={e => setForm({...form, timer:e.target.value})} />
+      </div>
+
+      {/* Category */}
+      <div>
+        <label className="block mb-1 text-xs font-bold uppercase tracking-wider" style={{ color:'var(--text-3)' }}>Category (optional)</label>
+        <ThemedSelect value={form.category} onChange={e => setForm({...form, category:e.target.value})}>
+          <option value="">— No category —</option>
+          {categories.map(c => <option key={c._id} value={c._id}>{c.icon} {c.name}</option>)}
+        </ThemedSelect>
+      </div>
+
+      {/* Audio (optional) */}
+      <div>
+        <label className="block mb-1 text-xs font-bold uppercase tracking-wider" style={{ color:'var(--text-3)' }}>
+          Audio File <span style={{ fontWeight:400, color:'var(--text-3)' }}>(optional — no audio needed for practice)</span>
+        </label>
+        <input type="file" accept="audio/*"
+          onChange={e => setAudioFile(e.target.files[0] || null)}
+          className="file-input-dark w-full text-sm" style={{ color:'var(--text-2)' }} />
+      </div>
+
+      <Msg m={msg} />
+      <button type="submit" disabled={uploading || !form.title || !masterText}
+        className="w-full py-3 rounded-xl text-sm font-black transition-all"
+        style={{
+          background: uploading ? 'var(--bg-surface)' : 'linear-gradient(135deg,#0ea5e9,#06b6d4)',
+          color: uploading ? 'var(--text-3)' : 'white',
+          opacity: (!form.title || !masterText) ? 0.5 : 1,
+        }}>
+        {uploading ? '⏳ Uploading…' : '✏️ Create Practice Content'}
+      </button>
+    </form>
   );
 }
 
@@ -926,6 +1057,76 @@ export default function AdminDashboard() {
                       style={{ background:'var(--bg-card)', color:'var(--text-2)' }}>×</button>
                   </div>
                   <Leaderboard entries={leaderboardData}/>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ═══ PRACTICE ═══════════════════════════════════════ */}
+        {tab === 'Practice' && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Left: upload form */}
+            <div style={cardStyle}>
+              <h2 className="text-lg mb-1" style={{ color:'var(--text-1)', fontWeight:800 }}>✏️ Upload Practice Content</h2>
+              <p className="text-sm mb-4" style={{ color:'var(--text-3)' }}>
+                Practice-only content — appears in users' Practice section only, not in Steno Tests. Audio is optional.
+              </p>
+              <PracticeUploadForm categories={categories} onCreated={fetchAll} />
+            </div>
+
+            {/* Right: practice-only tests list */}
+            <div style={cardStyle}>
+              <h2 className="text-lg mb-4" style={{ color:'var(--text-1)', fontWeight:800 }}>
+                ✏️ Practice Content ({tests.filter(t => t.practiceOnly).length})
+              </h2>
+              {tests.filter(t => t.practiceOnly).length === 0 ? (
+                <div className="text-center py-8">
+                  <div className="text-4xl mb-2">✏️</div>
+                  <p style={{ color:'var(--text-3)' }}>No practice content yet.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {tests.filter(t => t.practiceOnly).map(t => (
+                    <div key={t._id} className="rounded-xl p-4 transition"
+                      style={{ border:'1px solid var(--border)' }}
+                      onMouseEnter={e => e.currentTarget.style.borderColor='var(--border-hi)'}
+                      onMouseLeave={e => e.currentTarget.style.borderColor='var(--border)'}>
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-bold truncate" style={{ color:'var(--text-1)' }}>{t.title}</p>
+                          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                            <span className="text-xs px-2 py-0.5 rounded-full font-semibold"
+                              style={t.isActive
+                                ? { background:'rgba(16,185,129,0.15)', color:'#34d399' }
+                                : { background:'var(--bg-surface)', color:'var(--text-3)', border:'1px solid var(--border)' }}>
+                              {t.isActive ? '● Active' : '○ Inactive'}
+                            </span>
+                            <span className="text-xs px-2 py-0.5 rounded-full font-semibold"
+                              style={{ background:'rgba(6,182,212,0.15)', color:'#22d3ee' }}>
+                              ✏️ Practice Only
+                            </span>
+                            <span className="text-xs" style={{ color:'var(--text-3)' }}>⏱ {t.timer ?? 30} min</span>
+                            {t.category && <span className="text-xs" style={{ color:'var(--text-3)' }}>{t.category.icon} {t.category.name}</span>}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        <button onClick={() => toggleActive(t._id, t.isActive)}
+                          className="text-xs px-2.5 py-1.5 rounded-lg font-semibold transition hover:opacity-80"
+                          style={t.isActive
+                            ? { background:'rgba(245,158,11,0.12)', color:'#fbbf24', border:'1px solid rgba(245,158,11,0.20)' }
+                            : { background:'rgba(16,185,129,0.12)',  color:'#34d399',  border:'1px solid rgba(16,185,129,0.22)' }}>
+                          {t.isActive ? 'Deactivate' : 'Activate'}
+                        </button>
+                        <button onClick={() => deleteTest(t._id)}
+                          className="text-xs px-2.5 py-1.5 rounded-lg font-semibold transition hover:opacity-80"
+                          style={{ background:'rgba(239,68,68,0.12)', color:'#f87171', border:'1px solid rgba(239,68,68,0.22)' }}>
+                          🗑 Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
