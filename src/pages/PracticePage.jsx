@@ -51,7 +51,7 @@ export default function PracticePage() {
   const [started,   setStarted]   = useState(false);
 
   // layout / font
-  const [layout, setLayout] = useState('gail');
+  const [layout, setLayout] = useState('mangal');
   const [font,   setFont]   = useState(FONTS[0].value);
 
   // refs
@@ -544,15 +544,12 @@ export default function PracticePage() {
             {/* Controls row */}
             <div className="flex flex-wrap items-center gap-2">
 
-              {/* Category buttons */}
+              {/* Layout buttons — Mangal | Kruti Dev */}
               {LANGUAGE_CATEGORIES.map(cat => {
                 const isActive = activeCat === cat.value;
                 return (
                   <button key={cat.value}
-                    onClick={() => {
-                      if (cat.layouts) setLayout(cat.layouts[0].value);
-                      else setLayout(cat.value);
-                    }}
+                    onClick={() => setLayout(cat.value)}
                     className="text-xs px-3 py-1.5 rounded-xl font-bold transition-all"
                     style={{
                       background: isActive ? 'var(--accent)' : 'var(--bg-surface)',
@@ -563,24 +560,6 @@ export default function PracticePage() {
                   </button>
                 );
               })}
-
-              {/* Sub-layouts (Hindi only) */}
-              {catObj?.layouts && (
-                <div className="flex gap-1">
-                  {catObj.layouts.map(sub => (
-                    <button key={sub.value}
-                      onClick={() => setLayout(sub.value)}
-                      className="text-xs px-2.5 py-1 rounded-lg font-semibold transition-all"
-                      style={{
-                        background: layout === sub.value ? 'rgba(99,102,241,0.2)' : 'var(--bg-surface)',
-                        color: layout === sub.value ? '#818cf8' : 'var(--text-3)',
-                        border: `1px solid ${layout === sub.value ? 'rgba(99,102,241,0.4)' : 'var(--border)'}`,
-                      }}>
-                      {sub.label}
-                    </button>
-                  ))}
-                </div>
-              )}
 
               <div className="ml-auto flex items-center gap-2">
                 {/* Font */}

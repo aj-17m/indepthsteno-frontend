@@ -165,23 +165,11 @@ export const LAYOUT_MAPS = {
 ───────────────────────────────────────────────────────────────────────────── */
 export const LANGUAGE_CATEGORIES = [
   {
-    value   : 'english',
-    label   : 'English',
-    icon    : '🔤',
-    desc    : 'Standard English — QWERTY pass-through',
-    layouts : null,          // single-option category
-  },
-  {
-    value   : 'hindi',
-    label   : 'Hindi (Unicode)',
+    value   : 'mangal',
+    label   : 'Mangal',
     icon    : '🇮🇳',
-    desc    : 'Devanagari Unicode output — any Hindi font works',
-    layouts : [
-      { value: 'inscript', label: 'INSCRIPT', desc: 'BIS IS 15988 — standard govt layout' },
-      { value: 'cbi',      label: 'CBI',      desc: 'Central Bureau of Investigation' },
-      { value: 'gail',     label: 'GAIL',     desc: 'Remington Gail — standard SSC/UPSC steno' },
-      { value: 'mangal',   label: 'MANGAL',   desc: 'Mangal font layout — legacy Hindi keyboard' },
-    ],
+    desc    : 'Mangal font layout — Unicode Devanagari',
+    layouts : null,
   },
   {
     value   : 'krutidev',
@@ -211,9 +199,8 @@ export function isKrutidev(layout) {
 
 /** Derive the parent language-category value from an active layout key. */
 export function getCategoryForLayout(layout) {
-  if (layout === 'english')  return 'english';
   if (layout === 'krutidev') return 'krutidev';
-  return 'hindi';   // inscript | cbi | gail
+  return 'mangal';   // mangal (and any legacy: inscript | cbi | gail)
 }
 
 /**

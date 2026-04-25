@@ -217,7 +217,7 @@ export default function TestPage() {
   const [error,          setError]          = useState('');
   const [pasteDetected,  setPasteDetected]  = useState(false);
   const [pasteWarning,   setPasteWarning]   = useState(false);
-  const [layout,         setLayout]         = useState('gail');
+  const [layout,         setLayout]         = useState('mangal');
   const [showEndConfirm, setShowEndConfirm] = useState(false);
   const [showBackConfirm,setShowBackConfirm]= useState(false);
   const [savedDraft,     setSavedDraft]     = useState(null);
@@ -583,30 +583,22 @@ export default function TestPage() {
               {/* ── Language / Keyboard Selector ─────────────────── */}
               {(() => {
                 const activeCat = getCategoryForLayout(layout);
-                const hindiCat  = LANGUAGE_CATEGORIES.find(c => c.value === 'hindi');
                 return (
                   <div className="mb-6">
                     <label className="block text-xs font-bold uppercase tracking-widest mb-3"
                       style={{color:'rgba(255,255,255,0.35)'}}>
-                      ⌨️ Language &amp; Keyboard
+                      ⌨️ Keyboard Layout
                     </label>
 
-                    {/* Row 1 — Language Category */}
-                    <div className="grid grid-cols-3 gap-2 mb-3">
+                    {/* Layout selector — Mangal | Kruti Dev */}
+                    <div className="grid grid-cols-2 gap-2 mb-3">
                       {LANGUAGE_CATEGORIES.map(cat => {
                         const active = activeCat === cat.value;
                         return (
                           <button
                             key={cat.value}
                             type="button"
-                            onClick={() => {
-                              if (cat.layouts) {
-                                // Default to first sub-layout when switching to Hindi
-                                setLayout(cat.layouts[0].value);
-                              } else {
-                                setLayout(cat.value);
-                              }
-                            }}
+                            onClick={() => setLayout(cat.value)}
                             className="relative px-3 py-3 rounded-xl text-left transition-all hover:scale-[1.02] active:scale-95"
                             style={{
                               background: active
@@ -636,52 +628,6 @@ export default function TestPage() {
                       })}
                     </div>
 
-                    {/* Row 2 — Sub-layout (only visible when Hindi is selected) */}
-                    {activeCat === 'hindi' && hindiCat?.layouts && (
-                      <div className="grid grid-cols-3 gap-2 animate-fade-in"
-                        style={{
-                          background:'rgba(99,102,241,0.05)',
-                          borderRadius:'12px',
-                          padding:'10px',
-                          border:'1px solid rgba(99,102,241,0.15)',
-                        }}>
-                        <p className="col-span-3 text-[10px] font-bold uppercase tracking-widest mb-1.5"
-                          style={{color:'rgba(165,180,252,0.5)'}}>
-                          Select Layout
-                        </p>
-                        {hindiCat.layouts.map(sub => {
-                          const active = layout === sub.value;
-                          return (
-                            <button
-                              key={sub.value}
-                              type="button"
-                              onClick={() => setLayout(sub.value)}
-                              className="relative px-3 py-2.5 rounded-xl text-left transition-all hover:scale-[1.02] active:scale-95"
-                              style={{
-                                background: active
-                                  ? 'linear-gradient(135deg,rgba(99,102,241,0.4),rgba(124,58,237,0.3))'
-                                  : 'var(--bg-surface)',
-                                border: active
-                                  ? '1px solid rgba(99,102,241,0.6)'
-                                  : '1px solid var(--border)',
-                                boxShadow: active ? '0 0 12px rgba(99,102,241,0.25)' : 'none',
-                              }}>
-                              {active && (
-                                <div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-indigo-400"/>
-                              )}
-                              <p className="text-xs font-black"
-                                style={{color: active ? '#a5b4fc' : 'var(--text-1)'}}>
-                                {sub.label}
-                              </p>
-                              <p className="text-[10px] mt-0.5 leading-snug"
-                                style={{color:'var(--text-3)'}}>
-                                {sub.desc}
-                              </p>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
                   </div>
                 );
               })()}
@@ -694,18 +640,14 @@ export default function TestPage() {
                 </p>
                 {(() => {
                   const cat = getCategoryForLayout(layout);
-                  const subLabel = LANGUAGE_CATEGORIES
-                    .find(c => c.value === 'hindi')?.layouts
-                    ?.find(l => l.value === layout)?.label;
                   return [
                     '🔒 Master passage is hidden — type what you hear',
                     '🚫 Copy-paste is completely disabled',
                     `🔁 Audio can be replayed ${test.maxReplays ?? 2} times`,
                     '⏩ No forward seeking in audio',
-                    cat === 'hindi'     && `⌨️ Hindi Unicode — ${subLabel} layout active (no OS install needed)`,
-                    cat === 'hindi'     && '📝 All output is Unicode Devanagari — compatible with any Hindi font',
+                    cat === 'mangal'      && '⌨️ Mangal layout active — Unicode Devanagari output (no OS install needed)',
+                    cat === 'mangal'      && '📝 All output is Unicode Devanagari — compatible with any Hindi font',
                     layout === 'krutidev' && '🔄 KrutiDev keys auto-convert to Unicode — evaluation works correctly',
-                    layout === 'english'  && '🔤 English mode — standard QWERTY, text stored as-is',
                   ].filter(Boolean);
                 })().map((r, i) => (
                   <p key={i} className="text-xs" style={{color:'var(--rule-text)'}}>{r}</p>
