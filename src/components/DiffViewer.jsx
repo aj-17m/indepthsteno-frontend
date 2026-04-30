@@ -1,151 +1,218 @@
 /**
- * DiffViewer — two-panel comparison
- *
- * Panel 1 — ORIGINAL PASSAGE: master text with problem positions highlighted
- * Panel 2 — YOUR TYPING:      what the user typed, each word annotated by error type
- *
- * Error visual language
- * ─────────────────────
- *  Correct      green text, faint check background
- *  Half         amber text + thick wavy underline (1-char diff)
- *  Full         red text + double strikethrough (2+ char diff)
- *  Replace      purple text + strikethrough (completely different word)
- *  Missing      dashed red slot "- - -"   (user skipped the word)
- *  Extra        sky-blue text + left "+" border (user added a word)
+ * DiffViewer — Side-by-side comparison
+ * Left  : Original uploaded passage  (error positions highlighted)
+ * Right : What the user typed        (half = underline, full/replace = strikethrough)
  */
+
+import { useState } from 'react';
 
 const HF = { fontFamily: '"Nirmala UI", Mangal, "Noto Sans Devanagari", serif' };
 
-/* ── colour palette ─────────────────────────────────────────── */
-const C = {
-  correct : { text:'#4ade80',  bg:'rgba(16,185,129,0.10)', bdr:'rgba(16,185,129,0.28)' },
-  half    : { text:'#fbbf24',  bg:'rgba(251,191,36,0.14)', bdr:'rgba(251,191,36,0.50)' },
-  full    : { text:'#f87171',  bg:'rgba(239,68,68,0.15)',  bdr:'rgba(239,68,68,0.50)'  },
-  replace : { text:'#c084fc',  bg:'rgba(168,85,247,0.14)', bdr:'rgba(168,85,247,0.50)' },
-  missing : { text:'#fb923c',  bg:'rgba(239,68,68,0.10)',  bdr:'rgba(239,68,68,0.40)'  },
-  extra   : { text:'#38bdf8',  bg:'rgba(56,189,248,0.12)', bdr:'rgba(56,189,248,0.40)' },
-};
+/* ── Score strip ─────────────────────────────────────────────── */
+function ScoreStrip({ comparison }) {
+  const total   = comparison.filter(w => w.master).length;
+  const correct = comparison.filter(w => w.status === 'correct').length;
+  const half    = comparison.filter(w => w.status === 'half').length;
+  const full    = comparison.filter(w => w.status === 'full').length;
+  const replace = comparison.filter(w => w.status === 'replace').length;
+  const missing = comparison.filter(w => w.status === 'missing').length;
+  const extra   = comparison.filter(w => w.status === 'extra').length;
+  const pct     = total > 0 ? Math.round((correct / total) * 100) : 0;
 
-/* ─────────────────────────────────────────────────────────────
-   MASTER word chip  (shown in Original Passage panel)
-───────────────────────────────────────────────────────────── */
-function MasterWord({ master, status }) {
-  if (status === 'extra') {
-    /* no master word at this position — show thin placeholder */
+  const pills = [
+    { label:'Correct',  count: correct, color:'#4ade80', bg:'rgba(16,185,129,0.12)',  bdr:'rgba(16,185,129,0.28)'  },
+    { label:'Half',     count: half,    color:'#fbbf24', bg:'rgba(251,191,36,0.12)',  bdr:'rgba(251,191,36,0.30)'  },
+    { label:'Wrong',    count: full,    color:'#f87171', bg:'rgba(239,68,68,0.12)',   bdr:'rgba(239,68,68,0.28)'   },
+    { label:'Replace',  count: replace, color:'#c084fc', bg:'rgba(168,85,247,0.12)', bdr:'rgba(168,85,247,0.28)'  },
+    { label:'Missing',  count: missing, color:'#fb923c', bg:'rgba(251,146,60,0.12)', bdr:'rgba(251,146,60,0.28)'  },
+    { label:'Extra',    count: extra,   color:'#38bdf8', bg:'rgba(56,189,248,0.12)', bdr:'rgba(56,189,248,0.28)'  },
+  ].filter(p => p.count > 0);
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 px-4 py-3 rounded-2xl"
+      style={{ background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)' }}>
+      <span className="text-sm font-black" style={{ color:'#a5b4fc' }}>{pct}%</span>
+      <span className="text-xs mr-1" style={{ color:'rgba(255,255,255,0.28)' }}>{correct}/{total} correct</span>
+      {pills.map(p => (
+        <span key={p.label}
+          className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full"
+          style={{ background: p.bg, border:`1px solid ${p.bdr}`, color: p.color }}>
+          {p.count} {p.label}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/* ── Legend ──────────────────────────────────────────────────── */
+function Legend() {
+  return (
+    <div className="flex flex-wrap items-center gap-x-5 gap-y-2 px-3 py-2.5 rounded-xl"
+      style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.06)' }}>
+      <span className="text-[10px] font-black uppercase tracking-widest"
+        style={{ color:'rgba(255,255,255,0.20)' }}>Legend</span>
+
+      {/* correct */}
+      <span className="inline-flex items-center gap-1.5 text-xs" style={{ color:'rgba(255,255,255,0.40)' }}>
+        <span style={{ ...HF, color:'#4ade80', fontSize:'13px' }}>शब्द</span> Correct
+      </span>
+
+      {/* half */}
+      <span className="inline-flex items-center gap-1.5 text-xs" style={{ color:'rgba(255,255,255,0.40)' }}>
+        <span style={{
+          ...HF, color:'#fbbf24', fontSize:'13px',
+          textDecoration:'underline', textDecorationStyle:'wavy',
+          textDecorationColor:'#fbbf24', textUnderlineOffset:'3px',
+        }}>शब्द</span> Half mistake
+      </span>
+
+      {/* full */}
+      <span className="inline-flex items-center gap-1.5 text-xs" style={{ color:'rgba(255,255,255,0.40)' }}>
+        <span style={{
+          ...HF, color:'#f87171', fontSize:'13px',
+          textDecoration:'line-through', textDecorationColor:'#f87171', textDecorationThickness:'2px',
+        }}>शब्द</span> Full mistake
+      </span>
+
+      {/* replace */}
+      <span className="inline-flex items-center gap-1.5 text-xs" style={{ color:'rgba(255,255,255,0.40)' }}>
+        <span style={{
+          ...HF, color:'#c084fc', fontSize:'13px',
+          textDecoration:'line-through', textDecorationColor:'#c084fc', textDecorationThickness:'2px',
+        }}>शब्द</span> Replace
+      </span>
+
+      {/* missing */}
+      <span className="inline-flex items-center gap-1.5 text-xs" style={{ color:'rgba(255,255,255,0.40)' }}>
+        <span style={{
+          fontSize:'11px', color:'rgba(251,146,60,0.6)',
+          border:'1.5px dashed rgba(251,146,60,0.5)', borderRadius:'4px', padding:'0 5px',
+        }}>skip</span> Missing
+      </span>
+
+      {/* extra */}
+      <span className="inline-flex items-center gap-1.5 text-xs" style={{ color:'rgba(255,255,255,0.40)' }}>
+        <span style={{ ...HF, color:'#38bdf8', fontSize:'13px' }}>+शब्द</span> Extra
+      </span>
+    </div>
+  );
+}
+
+/* ── LEFT panel word (original passage) ────────────────────────
+   Shows the master word. Error positions get a coloured highlight
+   so the user can spot "what should have been here".
+──────────────────────────────────────────────────────────────── */
+function OriginalWord({ master, status }) {
+  if (!master) {
+    /* extra word position — no master word, just a thin placeholder */
     return (
       <span style={{
         display:'inline-block', verticalAlign:'middle',
-        width:'32px', height:'6px', margin:'0 6px 4px',
-        borderRadius:'3px', background:'rgba(56,189,248,0.20)',
-        border:'1px solid rgba(56,189,248,0.30)',
-      }} title="No master word here — extra word inserted by user"/>
+        width:'28px', height:'4px', margin:'0 5px 2px',
+        borderRadius:'2px',
+        background:'rgba(56,189,248,0.18)',
+      }} title="No original word here — extra word typed" />
     );
   }
 
   const base = {
     ...HF,
     display:'inline-block',
-    margin:'3px 4px',
-    padding:'3px 8px',
+    margin:'3px 3px',
+    padding:'4px 9px',
     borderRadius:'8px',
     fontSize:'16px',
-    lineHeight:'1.6',
+    lineHeight:'1.65',
     verticalAlign:'middle',
   };
 
   if (status === 'correct') {
     return (
-      <span style={{ ...base, color:'rgba(255,255,255,0.80)', background:'transparent' }}>
+      <span style={{ ...base, color:'rgba(255,255,255,0.70)' }}>
         {master}
       </span>
     );
   }
 
-  /* highlighted = had an error at this position */
-  const c = C[status] || C.full;
+  const highlight = {
+    half    : { color:'#fef08a', bg:'rgba(251,191,36,0.15)',  bdr:'rgba(251,191,36,0.35)'  },
+    full    : { color:'#fca5a5', bg:'rgba(239,68,68,0.15)',   bdr:'rgba(239,68,68,0.35)'   },
+    replace : { color:'#d8b4fe', bg:'rgba(168,85,247,0.15)', bdr:'rgba(168,85,247,0.35)'  },
+    missing : { color:'#fdba74', bg:'rgba(251,146,60,0.15)', bdr:'rgba(251,146,60,0.40)'  },
+    extra   : { color:'#7dd3fc', bg:'rgba(56,189,248,0.12)', bdr:'rgba(56,189,248,0.30)'  },
+  };
+  const h = highlight[status] || highlight.full;
+
   return (
-    <span style={{
-      ...base,
-      color: c.text,
-      background: c.bg,
-      border: `1.5px solid ${c.bdr}`,
-      fontWeight: 700,
-    }}
-      title={`${status} — correct word: "${master}"`}>
+    <span style={{ ...base, color: h.color, background: h.bg, border:`1.5px solid ${h.bdr}`, fontWeight:700 }}
+      title={`Expected: "${master}"`}>
       {master}
     </span>
   );
 }
 
-/* ─────────────────────────────────────────────────────────────
-   TYPED word chip  (shown in Your Typing panel)
-───────────────────────────────────────────────────────────── */
-function TypedWord({ master, typed, status, mistakeType }) {
+/* ── RIGHT panel word (user's typing) ──────────────────────────
+   Shows what the user typed.
+   correct  → green, no decoration
+   half     → amber + wavy underline
+   full     → red + line-through
+   replace  → purple + line-through
+   missing  → dashed "—" slot (nothing was typed here)
+   extra    → sky-blue (typed something extra)
+──────────────────────────────────────────────────────────────── */
+function TypedWord({ master, typed, status }) {
   const base = {
     ...HF,
     display:'inline-block',
-    margin:'3px 4px',
-    padding:'3px 8px',
+    margin:'3px 3px',
+    padding:'4px 9px',
     borderRadius:'8px',
     fontSize:'16px',
-    lineHeight:'1.6',
+    lineHeight:'1.65',
     verticalAlign:'middle',
   };
 
-  /* ── correct ─────────────────────────────────────────── */
   if (status === 'correct') {
     return (
-      <span style={{
-        ...base,
-        color: C.correct.text,
-        background: C.correct.bg,
-      }} title="Correct">
+      <span style={{ ...base, color:'#4ade80' }} title="Correct">
         {typed}
       </span>
     );
   }
 
-  /* ── missing — user skipped this word ───────────────── */
   if (status === 'missing') {
     return (
       <span style={{
-        display:'inline-flex', alignItems:'center', gap:'4px',
-        margin:'3px 4px', padding:'3px 10px',
+        display:'inline-flex', alignItems:'center',
+        margin:'3px 3px', padding:'4px 12px',
         borderRadius:'8px', verticalAlign:'middle',
-        background:'rgba(239,68,68,0.08)',
-        border:'2px dashed rgba(239,68,68,0.50)',
-      }} title={`Missing — should be "${master}"`}>
-        <span style={{ fontSize:'9px', color:'#f87171', fontWeight:900 }}>✕</span>
-        <span style={{ ...HF, fontSize:'13px', color:'rgba(248,113,113,0.55)',
-          letterSpacing:'0.12em', fontStyle:'italic' }}>skipped</span>
+        background:'rgba(251,146,60,0.08)',
+        border:'1.5px dashed rgba(251,146,60,0.50)',
+        color:'rgba(251,146,60,0.55)',
+        fontSize:'13px', fontStyle:'italic', letterSpacing:'0.06em',
+      }} title={`Should be: "${master}"`}>
+        — skipped —
       </span>
     );
   }
 
-  /* ── extra — user typed a word not in passage ────────── */
   if (status === 'extra') {
     return (
-      <span style={{
-        ...base,
-        color: C.extra.text,
-        background: C.extra.bg,
-        borderLeft: `4px solid ${C.extra.bdr}`,
-        paddingLeft:'10px',
-      }} title={`Extra word — "${typed}" not in passage`}>
-        <span style={{ fontSize:'10px', fontWeight:900, marginRight:'4px', opacity:0.7 }}>+</span>
+      <span style={{ ...base, color:'#38bdf8', background:'rgba(56,189,248,0.10)', border:'1px solid rgba(56,189,248,0.28)' }}
+        title={`Extra word: "${typed}" not in original`}>
+        <span style={{ fontSize:'10px', fontWeight:900, marginRight:'3px', opacity:0.6 }}>+</span>
         {typed}
       </span>
     );
   }
 
-  /* ── half mistake — wavy underline (1-char diff) ─────── */
   if (status === 'half') {
     return (
       <span style={{
         ...base,
-        color: C.half.text,
-        background: C.half.bg,
-        border: `1.5px solid ${C.half.bdr}`,
+        color:'#fbbf24',
+        background:'rgba(251,191,36,0.10)',
+        border:'1.5px solid rgba(251,191,36,0.35)',
         textDecoration:'underline',
         textDecorationStyle:'wavy',
         textDecorationColor:'#fbbf24',
@@ -157,193 +224,45 @@ function TypedWord({ master, typed, status, mistakeType }) {
     );
   }
 
-  /* ── full mistake — double strikethrough ─────────────── */
   if (status === 'full') {
     return (
       <span style={{
         ...base,
-        color: C.full.text,
-        background: C.full.bg,
-        border: `1.5px solid ${C.full.bdr}`,
+        color:'#f87171',
+        background:'rgba(239,68,68,0.12)',
+        border:'1.5px solid rgba(239,68,68,0.35)',
         textDecoration:'line-through',
         textDecorationColor:'#f87171',
         textDecorationThickness:'2.5px',
-        /* double line via box-shadow trick */
-        boxShadow:`inset 0 -1px 0 0 rgba(248,113,113,0.55)`,
       }} title={`Full mistake — typed "${typed}", should be "${master}"`}>
         {typed}
       </span>
     );
   }
 
-  /* ── replace error — completely different word ───────── */
   if (status === 'replace') {
     return (
       <span style={{
         ...base,
-        color: C.replace.text,
-        background: C.replace.bg,
-        border: `1.5px solid ${C.replace.bdr}`,
+        color:'#c084fc',
+        background:'rgba(168,85,247,0.12)',
+        border:'1.5px solid rgba(168,85,247,0.35)',
         textDecoration:'line-through',
         textDecorationColor:'#c084fc',
         textDecorationThickness:'2px',
-        /* diagonal stripe overlay via repeating-linear-gradient */
-        backgroundImage:'repeating-linear-gradient(135deg,transparent,transparent 4px,rgba(168,85,247,0.07) 4px,rgba(168,85,247,0.07) 8px)',
       }} title={`Replace error — completely different word — typed "${typed}", should be "${master}"`}>
         {typed}
       </span>
     );
   }
 
-  /* fallback */
-  return <span style={{ ...base, color:'rgba(255,255,255,0.40)' }}>{typed || master}</span>;
+  return <span style={{ ...base, color:'rgba(255,255,255,0.35)' }}>{typed ?? master}</span>;
 }
 
-/* ─────────────────────────────────────────────────────────────
-   Legend strip
-───────────────────────────────────────────────────────────── */
-function Legend() {
-  const items = [
-    {
-      label: 'Correct',
-      chip: (
-        <span style={{ ...HF, fontSize:'13px', padding:'2px 8px', borderRadius:'6px',
-          color: C.correct.text, background: C.correct.bg }}>शब्द</span>
-      ),
-    },
-    {
-      label: 'Half mistake (1 char off)',
-      chip: (
-        <span style={{ ...HF, fontSize:'13px', padding:'2px 8px', borderRadius:'6px',
-          color: C.half.text, background: C.half.bg, border:`1.5px solid ${C.half.bdr}`,
-          textDecoration:'underline', textDecorationStyle:'wavy',
-          textDecorationColor:'#fbbf24', textUnderlineOffset:'3px' }}>शब्द</span>
-      ),
-    },
-    {
-      label: 'Full mistake (2+ chars)',
-      chip: (
-        <span style={{ ...HF, fontSize:'13px', padding:'2px 8px', borderRadius:'6px',
-          color: C.full.text, background: C.full.bg, border:`1.5px solid ${C.full.bdr}`,
-          textDecoration:'line-through', textDecorationThickness:'2.5px' }}>शब्द</span>
-      ),
-    },
-    {
-      label: 'Replace (wrong word)',
-      chip: (
-        <span style={{ ...HF, fontSize:'13px', padding:'2px 8px', borderRadius:'6px',
-          color: C.replace.text, background: C.replace.bg, border:`1.5px solid ${C.replace.bdr}`,
-          textDecoration:'line-through',
-          backgroundImage:'repeating-linear-gradient(135deg,transparent,transparent 4px,rgba(168,85,247,0.10) 4px,rgba(168,85,247,0.10) 8px)',
-        }}>शब्द</span>
-      ),
-    },
-    {
-      label: 'Skipped',
-      chip: (
-        <span style={{ fontSize:'13px', padding:'2px 10px', borderRadius:'6px',
-          color:'rgba(248,113,113,0.55)', background:'rgba(239,68,68,0.08)',
-          border:'2px dashed rgba(239,68,68,0.45)', fontStyle:'italic' }}>skipped</span>
-      ),
-    },
-    {
-      label: 'Extra word',
-      chip: (
-        <span style={{ ...HF, fontSize:'13px', padding:'2px 8px', borderRadius:'6px',
-          color: C.extra.text, background: C.extra.bg,
-          borderLeft:`4px solid ${C.extra.bdr}`, paddingLeft:'10px' }}>
-          <span style={{ fontSize:'9px', marginRight:'3px', opacity:0.7 }}>+</span>शब्द
-        </span>
-      ),
-    },
-  ];
-
-  return (
-    <div className="flex flex-wrap items-center gap-x-6 gap-y-3 px-4 py-3 rounded-2xl"
-      style={{ background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)' }}>
-      <span className="text-[10px] font-black uppercase tracking-widest w-full sm:w-auto"
-        style={{ color:'rgba(255,255,255,0.25)' }}>Legend</span>
-      {items.map(({ label, chip }) => (
-        <div key={label} className="flex items-center gap-2">
-          {chip}
-          <span className="text-xs" style={{ color:'rgba(255,255,255,0.35)' }}>{label}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/* ─────────────────────────────────────────────────────────────
-   Score summary bar
-───────────────────────────────────────────────────────────── */
-function ScoreBar({ comparison }) {
-  const counts = {
-    correct : comparison.filter(w => w.status === 'correct').length,
-    half    : comparison.filter(w => w.status === 'half').length,
-    full    : comparison.filter(w => w.status === 'full').length,
-    replace : comparison.filter(w => w.status === 'replace').length,
-    missing : comparison.filter(w => w.status === 'missing').length,
-    extra   : comparison.filter(w => w.status === 'extra').length,
-  };
-  const total = comparison.filter(w => w.master).length;
-
-  const badges = [
-    { key:'correct', icon:'✓', label:'Correct',  ...C.correct },
-    { key:'half',    icon:'〰', label:'Half',     ...C.half    },
-    { key:'full',    icon:'✂', label:'Full',     ...C.full    },
-    { key:'replace', icon:'↔', label:'Replace',  ...C.replace },
-    { key:'missing', icon:'✕', label:'Missing',  ...C.missing },
-    { key:'extra',   icon:'+', label:'Extra',    ...C.extra   },
-  ];
-
-  return (
-    <div className="flex flex-wrap items-center gap-2 px-4 py-3 rounded-2xl"
-      style={{ background:'linear-gradient(135deg,rgba(99,102,241,0.08),rgba(139,92,246,0.05))', border:'1px solid rgba(99,102,241,0.18)' }}>
-      {badges.map(b => counts[b.key] > 0 && (
-        <span key={b.key}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black"
-          style={{ background:b.bg, border:`1.5px solid ${b.bdr}`, color:b.text }}>
-          <span>{b.icon}</span>
-          <span>{counts[b.key]}</span>
-          <span className="font-normal opacity-60">{b.label}</span>
-        </span>
-      ))}
-      <span className="ml-auto text-[11px]" style={{ color:'rgba(255,255,255,0.20)' }}>
-        {total} passage words
-      </span>
-    </div>
-  );
-}
-
-/* ─────────────────────────────────────────────────────────────
-   Panel wrapper
-───────────────────────────────────────────────────────────── */
-function Panel({ title, icon, accentColor, children }) {
-  return (
-    <div className="rounded-2xl overflow-hidden"
-      style={{ border:`1px solid rgba(255,255,255,0.09)`, background:'rgba(255,255,255,0.025)' }}>
-      {/* header */}
-      <div className="flex items-center gap-2.5 px-5 py-3"
-        style={{
-          background:`${accentColor}12`,
-          borderBottom:`1px solid ${accentColor}25`,
-        }}>
-        <span style={{ fontSize:'16px' }}>{icon}</span>
-        <span className="text-xs font-black uppercase tracking-widest"
-          style={{ color:`${accentColor}` }}>{title}</span>
-      </div>
-      {/* content */}
-      <div className="px-5 py-5" style={{ lineHeight:'2.6', ...HF }}>
-        {children}
-      </div>
-    </div>
-  );
-}
-
-/* ─────────────────────────────────────────────────────────────
-   Main export
-───────────────────────────────────────────────────────────── */
+/* ── Main export ─────────────────────────────────────────────── */
 export default function DiffViewer({ comparison = [] }) {
+  const [showOnlyErrors, setShowOnlyErrors] = useState(false);
+
   if (!comparison.length) {
     return (
       <div className="text-center py-16">
@@ -364,49 +283,90 @@ export default function DiffViewer({ comparison = [] }) {
     );
   }
 
+  const visible = showOnlyErrors
+    ? comparison.filter(w => w.status !== 'correct')
+    : comparison;
+
+  const errorCount = comparison.filter(w => w.status !== 'correct').length;
+
   return (
     <div className="space-y-4">
 
-      {/* Score summary */}
-      <ScoreBar comparison={comparison} />
+      {/* Score */}
+      <ScoreStrip comparison={comparison} />
 
-      {/* Legend */}
-      <Legend />
-
-      {/* ── Panel 1: Original Passage ─────────────────────────── */}
-      <Panel title="Original Passage" icon="📄" accentColor="#6ee7b7">
-        <div>
-          {comparison.map((item, i) => (
-            <MasterWord
-              key={i}
-              master={item.master}
-              status={item.status}
-            />
-          ))}
+      {/* Legend + toggle */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+        <div className="flex-1">
+          <Legend />
         </div>
-        <p className="text-[11px] mt-3 pt-3" style={{ color:'rgba(255,255,255,0.22)', borderTop:'1px solid rgba(255,255,255,0.06)' }}>
-          Highlighted words show positions where an error occurred — this is what you should have typed.
-        </p>
-      </Panel>
+        <button
+          onClick={() => setShowOnlyErrors(v => !v)}
+          className="shrink-0 text-xs px-3 py-2 rounded-xl font-semibold transition-all"
+          style={{
+            background: showOnlyErrors ? 'rgba(99,102,241,0.20)' : 'rgba(255,255,255,0.05)',
+            border: showOnlyErrors ? '1px solid rgba(99,102,241,0.40)' : '1px solid rgba(255,255,255,0.10)',
+            color: showOnlyErrors ? '#a5b4fc' : 'rgba(255,255,255,0.35)',
+            whiteSpace:'nowrap',
+          }}>
+          {showOnlyErrors ? `${errorCount} errors shown` : 'Errors only'}
+        </button>
+      </div>
 
-      {/* ── Panel 2: Your Typing ──────────────────────────────── */}
-      <Panel title="Your Typing" icon="✍️" accentColor="#a5b4fc">
-        <div>
-          {comparison.map((item, i) => (
-            <TypedWord
-              key={i}
-              master={item.master}
-              typed={item.typed}
-              status={item.status}
-              mistakeType={item.mistakeType}
-            />
-          ))}
+      {/* ── Side-by-side panels ─────────────────────────────────── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+
+        {/* LEFT — Original passage */}
+        <div className="rounded-2xl overflow-hidden"
+          style={{ border:'1px solid rgba(110,231,183,0.20)', background:'rgba(16,185,129,0.04)' }}>
+          {/* Header */}
+          <div className="flex items-center gap-2 px-4 py-3"
+            style={{ borderBottom:'1px solid rgba(110,231,183,0.15)', background:'rgba(16,185,129,0.08)' }}>
+            <span style={{ fontSize:'15px' }}>📄</span>
+            <span className="text-xs font-black uppercase tracking-widest" style={{ color:'#6ee7b7' }}>
+              Original Passage
+            </span>
+          </div>
+          {/* Words */}
+          <div className="px-4 py-4" style={{ lineHeight:'2.8', ...HF }}>
+            {visible.map((item, i) => (
+              <OriginalWord key={i} master={item.master} status={item.status} />
+            ))}
+            {showOnlyErrors && visible.length === 0 && (
+              <p className="text-sm py-4" style={{ color:'rgba(255,255,255,0.25)' }}>No errors to show.</p>
+            )}
+          </div>
+          <p className="px-4 pb-3 text-[11px]" style={{ color:'rgba(255,255,255,0.18)' }}>
+            Highlighted words show where an error occurred
+          </p>
         </div>
-        <p className="text-[11px] mt-3 pt-3" style={{ color:'rgba(255,255,255,0.22)', borderTop:'1px solid rgba(255,255,255,0.06)' }}>
-          Each word shows exactly how you typed it — hover any word for details.
-        </p>
-      </Panel>
 
+        {/* RIGHT — User's typing */}
+        <div className="rounded-2xl overflow-hidden"
+          style={{ border:'1px solid rgba(165,180,252,0.20)', background:'rgba(99,102,241,0.04)' }}>
+          {/* Header */}
+          <div className="flex items-center gap-2 px-4 py-3"
+            style={{ borderBottom:'1px solid rgba(165,180,252,0.15)', background:'rgba(99,102,241,0.08)' }}>
+            <span style={{ fontSize:'15px' }}>✍️</span>
+            <span className="text-xs font-black uppercase tracking-widest" style={{ color:'#a5b4fc' }}>
+              Your Typing
+            </span>
+          </div>
+          {/* Words */}
+          <div className="px-4 py-4" style={{ lineHeight:'2.8', ...HF }}>
+            {visible.map((item, i) => (
+              <TypedWord key={i} master={item.master} typed={item.typed} status={item.status} />
+            ))}
+            {showOnlyErrors && visible.length === 0 && (
+              <p className="text-sm py-4" style={{ color:'rgba(255,255,255,0.25)' }}>No errors to show.</p>
+            )}
+          </div>
+          <p className="px-4 pb-3 text-[11px]" style={{ color:'rgba(255,255,255,0.18)' }}>
+            Wavy underline = half mistake · Strikethrough = full / replace
+          </p>
+        </div>
+
+      </div>
     </div>
   );
 }

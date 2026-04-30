@@ -330,7 +330,7 @@ function TrendChart({ history, currentId }) {
 }
 
 /* ── Result Page ──────────────────────────────────────── */
-const TABS = ['Summary', 'Comparison', 'Progress', 'Leaderboard'];
+const TABS = ['Comparison', 'Summary', 'Progress', 'Leaderboard'];
 
 export default function ResultPage() {
   const { resultId }  = useParams();
@@ -342,7 +342,7 @@ export default function ResultPage() {
   const [leaderboard, setLeaderboard] = useState([]);
   const [history,     setHistory]     = useState([]);
   const [loading,     setLoading]     = useState(true);
-  const [activeTab,   setActiveTab]   = useState('Summary');
+  const [activeTab,   setActiveTab]   = useState('Comparison');
   const [testTitle,   setTestTitle]   = useState(state?.testTitle || '');
 
   useEffect(() => {
@@ -526,13 +526,18 @@ export default function ResultPage() {
           }}>
           {/* Tab bar */}
           <div className="flex" style={{borderBottom:'1px solid rgba(255,255,255,0.07)'}}>
-            {TABS.map(tab => (
-              <button key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`flex-1 py-4 text-sm font-bold transition-all relative ${activeTab===tab?'tab-active':''}`}
-                style={{color: activeTab===tab ? 'white' : 'rgba(255,255,255,0.3)'}}>
-                {tab}
-                {activeTab===tab && (
+            {[
+              { id:'Comparison', icon:'🔍', label:'Word Diff' },
+              { id:'Summary',    icon:'📋', label:'Mistakes' },
+              { id:'Progress',   icon:'📈', label:'Progress' },
+              { id:'Leaderboard',icon:'🏆', label:'Ranking'  },
+            ].map(tab => (
+              <button key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex-1 py-3.5 text-xs sm:text-sm font-bold transition-all relative ${activeTab===tab.id?'tab-active':''}`}
+                style={{color: activeTab===tab.id ? 'white' : 'rgba(255,255,255,0.3)'}}>
+                <span className="hidden sm:inline">{tab.icon} </span>{tab.label}
+                {activeTab===tab.id && (
                   <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full"
                     style={{background:'linear-gradient(90deg,#4f46e5,#7c3aed)', boxShadow:'0 0 8px rgba(99,102,241,0.6)'}}/>
                 )}
@@ -540,8 +545,16 @@ export default function ResultPage() {
             ))}
           </div>
 
-          <div className="p-6">
-            {/* Summary */}
+          <div className="p-5 sm:p-6">
+
+            {/* ── Word Diff (default) ───────────────────────── */}
+            {activeTab==='Comparison' && (
+              <div className="animate-fade-in">
+                <DiffViewer comparison={fullResult?.wordComparison || []} />
+              </div>
+            )}
+
+            {/* ── Mistake Breakdown ─────────────────────────── */}
             {activeTab==='Summary' && (
               <div className="space-y-4 animate-fade-in">
                 <div className="flex items-center justify-between mb-2">
@@ -557,14 +570,7 @@ export default function ResultPage() {
               </div>
             )}
 
-            {/* Comparison */}
-            {activeTab==='Comparison' && (
-              <div className="animate-fade-in">
-                <DiffViewer comparison={fullResult?.wordComparison || []} />
-              </div>
-            )}
-
-            {/* Progress */}
+            {/* ── Progress ──────────────────────────────────── */}
             {activeTab==='Progress' && (
               <div className="animate-fade-in">
                 <h3 className="font-bold text-white/70 text-sm uppercase tracking-wide mb-4">
@@ -574,7 +580,7 @@ export default function ResultPage() {
               </div>
             )}
 
-            {/* Leaderboard */}
+            {/* ── Leaderboard ───────────────────────────────── */}
             {activeTab==='Leaderboard' && (
               <div className="animate-fade-in">
                 <h3 className="font-bold text-white/70 text-sm uppercase tracking-wide mb-4">

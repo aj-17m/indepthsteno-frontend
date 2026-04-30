@@ -27,16 +27,15 @@ function Waveform({ playing }) {
   );
 }
 
-export default function CustomAudioPlayer({ src, maxReplays = 2, onEnded, autoPlay = false }) {
+export default function CustomAudioPlayer({ src, onEnded, autoPlay = false }) {
   const audioRef  = useRef(null);
-  const [playing,     setPlaying]     = useState(false);
-  const [duration,    setDuration]    = useState(0);
-  const [current,     setCurrent]     = useState(0);
-  const [speed,       setSpeed]       = useState(1.0);
-  const [volume,      setVolume]      = useState(1.0);
-  const [muted,       setMuted]       = useState(false);
-  const [replaysLeft, setReplaysLeft] = useState(maxReplays);
-  const [playCount,   setPlayCount]   = useState(0);
+  const [playing,   setPlaying]   = useState(false);
+  const [duration,  setDuration]  = useState(0);
+  const [current,   setCurrent]   = useState(0);
+  const [speed,     setSpeed]     = useState(1.0);
+  const [volume,    setVolume]    = useState(1.0);
+  const [muted,     setMuted]     = useState(false);
+  const [playCount, setPlayCount] = useState(0);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -45,11 +44,6 @@ export default function CustomAudioPlayer({ src, maxReplays = 2, onEnded, autoPl
     const onTime = () => setCurrent(audio.currentTime);
     const onEnd  = () => {
       setPlaying(false);
-      setReplaysLeft(prev => {
-        const next = prev - 1;
-        if (next <= 0 && onEnded) onEnded();
-        return next;
-      });
     };
     audio.addEventListener('loadedmetadata', onMeta);
     audio.addEventListener('timeupdate',     onTime);
@@ -78,7 +72,6 @@ export default function CustomAudioPlayer({ src, maxReplays = 2, onEnded, autoPl
     if (playing) {
       audio.pause(); setPlaying(false);
     } else {
-      if (replaysLeft <= 0) return;
       audio.play().then(() => {
         setPlaying(true);
         setPlayCount(c => c + 1);
@@ -91,8 +84,7 @@ export default function CustomAudioPlayer({ src, maxReplays = 2, onEnded, autoPl
     return `${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,'0')}`;
   };
 
-  const pct    = duration > 0 ? (current / duration) * 100 : 0;
-  const canPlay = replaysLeft > 0 || playing;
+  const pct = duration > 0 ? (current / duration) * 100 : 0;
 
   return (
     <div className="rounded-3xl overflow-hidden animate-scale-in"
@@ -144,7 +136,7 @@ export default function CustomAudioPlayer({ src, maxReplays = 2, onEnded, autoPl
 
             <div>
               <p className="font-black text-white text-base">
-                {playing ? 'Playing…' : replaysLeft > 0 ? 'Ready to Play' : 'Playback Complete'}
+                {playing ? 'Playing…' : playCount === 0 ? 'Ready to Play' : 'Ready to Replay'}
               </p>
               <p className="text-white/50 text-xs mt-0.5">{fmt(current)} / {fmt(duration)}</p>
             </div>
@@ -188,17 +180,14 @@ export default function CustomAudioPlayer({ src, maxReplays = 2, onEnded, autoPl
 
       {/* ── Bottom controls ────────────────────────── */}
       <div className="p-5 space-y-4">
-        {/* Play/Pause + replay badge */}
+        {/* Play/Pause */}
         <div className="flex items-center gap-3">
-          <button onClick={togglePlay} disabled={!canPlay}
+          <button onClick={togglePlay}
             className="flex items-center gap-2.5 px-6 py-3 rounded-2xl font-bold text-sm transition-all active:scale-95"
             style={{
-              background: canPlay
-                ? 'linear-gradient(135deg,#4f46e5,#7c3aed)'
-                : 'rgba(255,255,255,0.06)',
-              color: canPlay ? 'white' : 'rgba(255,255,255,0.25)',
-              boxShadow: canPlay ? '0 0 20px rgba(99,102,241,0.4), 0 4px 12px rgba(0,0,0,0.3)' : 'none',
-              cursor: canPlay ? 'pointer' : 'not-allowed',
+              background: 'linear-gradient(135deg,#4f46e5,#7c3aed)',
+              color: 'white',
+              boxShadow: '0 0 20px rgba(99,102,241,0.4), 0 4px 12px rgba(0,0,0,0.3)',
             }}>
             {playing ? (
               <>
@@ -217,18 +206,17 @@ export default function CustomAudioPlayer({ src, maxReplays = 2, onEnded, autoPl
             )}
           </button>
 
-          {/* Replay counter */}
-          <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold"
-            style={{
-              background: replaysLeft > 0 ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.12)',
-              color: replaysLeft > 0 ? '#34d399' : '#f87171',
-              border: `1px solid ${replaysLeft > 0 ? 'rgba(16,185,129,0.25)' : 'rgba(239,68,68,0.2)'}`,
-            }}>
-            <span>{replaysLeft > 0 ? '🔄' : '⛔'}</span>
-            {replaysLeft > 0
-              ? `${replaysLeft} replay${replaysLeft !== 1 ? 's' : ''} left`
-              : 'No replays left'}
-          </div>
+          {playCount > 0 && (
+            <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold"
+              style={{
+                background: 'rgba(16,185,129,0.15)',
+                color: '#34d399',
+                border: '1px solid rgba(16,185,129,0.25)',
+              }}>
+              <span>🔄</span>
+              {playCount} {playCount === 1 ? 'listen' : 'listens'}
+            </div>
+          )}
         </div>
 
         {/* Speed slider */}
@@ -338,18 +326,6 @@ export default function CustomAudioPlayer({ src, maxReplays = 2, onEnded, autoPl
           </div>
         </div>
 
-        {/* Replays exhausted warning */}
-        {replaysLeft <= 0 && !playing && (
-          <div className="flex items-center gap-2.5 px-4 py-3 rounded-2xl text-xs font-medium animate-scale-in"
-            style={{
-              background:'rgba(245,158,11,0.12)',
-              border:'1px solid rgba(245,158,11,0.2)',
-              color:'#fcd34d',
-            }}>
-            <span className="text-base">⚡</span>
-            All replays used — typing area is now unlocked!
-          </div>
-        )}
       </div>
 
       <audio ref={audioRef} src={src} preload="metadata" className="hidden"/>

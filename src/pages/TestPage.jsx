@@ -263,6 +263,12 @@ export default function TestPage() {
     hindiBufferRef.current = '';
   }, [layout]);
 
+  // Keep textarea scrolled to bottom so the caret stays visible while typing
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [typedText]);
+
   const handleAudioEnded = useCallback(() => {
     const secs = (test?.timer ?? 30) * 60;
     setPhase(PHASES.TYPING);
@@ -317,12 +323,29 @@ export default function TestPage() {
       e.preventDefault();
 
       if (e.key === 'Backspace') {
-        // Remove last raw codepoint from buffer
-        const arr = [...krutidevBufferRef.current];
-        arr.pop();
-        krutidevBufferRef.current = arr.join('');
+        if (krutidevBufferRef.current.length > 0) {
+          // Buffer in sync — pop last raw keystroke and re-convert
+          const arr = [...krutidevBufferRef.current];
+          arr.pop();
+          krutidevBufferRef.current = arr.join('');
+          const uni = kru2uni(krutidevBufferRef.current);
+          el.value = uni;
+          el.selectionStart = el.selectionEnd = uni.length;
+          setTypedText(uni);
+        } else if (el.value) {
+          // Buffer empty (draft restored / external paste) — code-point fallback
+          const newVal = [...el.value].slice(0, -1).join('');
+          el.value = newVal;
+          el.selectionStart = el.selectionEnd = newVal.length;
+          setTypedText(newVal);
+        }
+        return;
       } else if (e.key === 'Delete') {
         krutidevBufferRef.current = '';
+        el.value = '';
+        el.selectionStart = el.selectionEnd = 0;
+        setTypedText('');
+        return;
       } else if (e.key === 'Enter') {
         krutidevBufferRef.current += '\n';
       } else if (e.key.length === 1) {
@@ -354,14 +377,46 @@ export default function TestPage() {
     e.preventDefault();
 
     if (e.key === 'Backspace') {
-      const arr = [...hindiBufferRef.current];
-      arr.pop();
-      hindiBufferRef.current = arr.join('');
-    } else if (e.key === 'Delete') {
+      // ── Grapheme-aware delete on actual textarea content ────────────────
+      // We read from el.value, NOT from hindiBufferRef, so this works
+      // correctly even when an external typing tool (Gail/CBI IME, system
+      // Hindi keyboard driver) inserted characters that bypassed our buffer.
+      const current = el.value;
+      if (!current) return;
+      const newVal = [...current].slice(0, -1).join('');
+      hindiBufferRef.current = newVal; // keep buffer in sync with real content
+      el.value = newVal;
+      el.selectionStart = el.selectionEnd = newVal.length;
+      setTypedText(newVal);
+      return;
+    }
+
+    if (e.key === 'Delete') {
       hindiBufferRef.current = '';
-    } else if (e.key === 'Enter') {
-      hindiBufferRef.current += '\n';
-    } else if (e.key.length === 1) {
+      el.value = '';
+      el.selectionStart = el.selectionEnd = 0;
+      setTypedText('');
+      return;
+    }
+
+    if (e.key === 'Enter') {
+      const newVal = el.value + '\n';
+      hindiBufferRef.current = newVal;
+      el.value = newVal;
+      el.selectionStart = el.selectionEnd = newVal.length;
+      setTypedText(newVal);
+      return;
+    }
+
+    if (e.key.length === 1) {
+      // If an external tool inserted chars that bypassed our buffer, resync
+      // before appending the new key — prevents double-output glitches.
+      const expectedFromBuf = layout === 'inscript'
+        ? processInscriptBuffer(hindiBufferRef.current)
+        : processHindiBuffer(hindiBufferRef.current, map);
+      if (expectedFromBuf !== el.value) {
+        hindiBufferRef.current = el.value; // resync to actual content
+      }
       hindiBufferRef.current += e.key;
     } else {
       return;
@@ -643,7 +698,7 @@ export default function TestPage() {
                   return [
                     '🔒 Master passage is hidden — type what you hear',
                     '🚫 Copy-paste is completely disabled',
-                    `🔁 Audio can be replayed ${test.maxReplays ?? 2} times`,
+                    '🔁 Audio can be replayed unlimited times',
                     '⏩ No forward seeking in audio',
                     cat === 'mangal'      && '⌨️ Mangal layout active — Unicode Devanagari output (no OS install needed)',
                     cat === 'mangal'      && '📝 All output is Unicode Devanagari — compatible with any Hindi font',
@@ -714,7 +769,7 @@ export default function TestPage() {
                 style={{borderBottom:'1px solid rgba(255,255,255,0.07)', divideColor:'rgba(255,255,255,0.07)'}}>
                 {[
                   { icon:'⏱', label:'Duration',  value:`${test.timer ?? 30} min` },
-                  { icon:'🔄', label:'Replays',   value:`${test.maxReplays ?? 2}×` },
+                  { icon:'🔄', label:'Replays',   value:'Unlimited' },
                   { icon:'⌨️', label:'Layout',    value: (() => {
                     const cat = LANGUAGE_CATEGORIES.find(c => c.value === getCategoryForLayout(layout));
                     const sub = cat?.layouts?.find(l => l.value === layout);
@@ -760,27 +815,24 @@ export default function TestPage() {
                 style={{background:'rgba(0,0,0,0.15)'}}>
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" style={{animationDuration:'1.2s'}}/>
                 <p className="text-xs" style={{color:'rgba(255,255,255,0.40)'}}>
-                  Typing area unlocks automatically when audio ends
+                  Listen as many times as needed, then click Start Typing below
                 </p>
               </div>
             </div>
 
             <CustomAudioPlayer
               src={resolveAudioUrl(test.audioPath)}
-              maxReplays={test.maxReplays ?? 2}
-              onEnded={handleAudioEnded}
             />
 
             <button onClick={handleAudioEnded}
-              className="w-full py-3 rounded-2xl text-sm font-bold transition-all"
+              className="w-full py-3 rounded-2xl text-sm font-black text-white transition-all active:scale-95 relative overflow-hidden"
               style={{
-                background:'var(--bg-surface)',
-                border:'1px solid var(--border)',
-                color:'var(--text-2)',
-              }}
-              onMouseEnter={e=>{e.currentTarget.style.background='rgba(255,255,255,0.08)';e.currentTarget.style.color='rgba(255,255,255,0.7)';}}
-              onMouseLeave={e=>{e.currentTarget.style.background='rgba(255,255,255,0.04)';e.currentTarget.style.color='rgba(255,255,255,0.4)';}}>
-              Skip Audio & Start Typing →
+                background:'linear-gradient(135deg,#059669,#10b981)',
+                boxShadow:'0 0 20px rgba(16,185,129,0.35), 0 4px 12px rgba(0,0,0,0.3)',
+              }}>
+              <div className="absolute inset-0 pointer-events-none"
+                style={{background:'linear-gradient(135deg,rgba(255,255,255,0.15) 0%,transparent 60%)'}}/>
+              <span className="relative z-10">Done Listening — Start Typing →</span>
             </button>
           </div>
         )}
