@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
 import Leaderboard from '../components/Leaderboard';
+import DiffViewer from '../components/DiffViewer';
 import ThemeToggle from '../components/ThemeToggle';
 
 const TABS = ['Upload Steno Test', 'Upload Practice Test', 'Categories', 'Users', 'Assignments', 'Results', 'Reviews'];
@@ -29,6 +30,172 @@ function Msg({ m }) {
   );
 }
 const fmtTime = s => s ? `${Math.floor(s/60)}m ${s%60}s` : '—';
+
+/* ─── Result detail helpers (mirrors ResultPage) ─────────── */
+function getGrade(e) {
+  if (e <= 2)  return { label:'Excellent',       emoji:'🏆', color:'#10b981', bg:'rgba(16,185,129,0.12)',  ring:'#10b981' };
+  if (e <= 5)  return { label:'Very Good',       emoji:'🌟', color:'#3b82f6', bg:'rgba(59,130,246,0.12)',  ring:'#3b82f6' };
+  if (e <= 8)  return { label:'Good',            emoji:'✨', color:'#6366f1', bg:'rgba(99,102,241,0.12)',  ring:'#6366f1' };
+  if (e <= 12) return { label:'Average',         emoji:'📈', color:'#f59e0b', bg:'rgba(245,158,11,0.12)', ring:'#f59e0b' };
+  return             { label:'Keep Practicing', emoji:'💪', color:'#ef4444', bg:'rgba(239,68,68,0.12)',   ring:'#ef4444' };
+}
+function ProgressRing({ value, max=100, size=100, stroke=9, color, label, sublabel }) {
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const offset = c * (1 - Math.min(value/max, 1));
+  return (
+    <div className="flex flex-col items-center">
+      <div className="relative" style={{width:size,height:size}}>
+        <svg width={size} height={size} style={{transform:'rotate(-90deg)'}}>
+          <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={stroke}/>
+          <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={stroke}
+            strokeLinecap="round" strokeDasharray={c} strokeDashoffset={offset}
+            style={{transition:'stroke-dashoffset 1.2s ease-out', filter:`drop-shadow(0 0 5px ${color}80)`}}/>
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span className="text-base font-black text-white">{label}</span>
+          {sublabel && <span className="text-[10px] text-white/40">{sublabel}</span>}
+        </div>
+      </div>
+    </div>
+  );
+}
+function WordTag({ master, typed, color, bg, border }) {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-lg px-2 py-0.5 my-0.5 mx-0.5 text-sm"
+      style={{background:bg, border:`1px solid ${border}`, fontFamily:'Nirmala UI,Mangal,serif', color}}>
+      {typed && typed !== master ? (
+        <><span style={{opacity:0.5,textDecoration:'line-through'}}>{typed}</span>
+          <span style={{opacity:0.4,fontSize:'10px'}}>→</span>
+          <span className="font-semibold">{master}</span></>
+      ) : (
+        <span className="font-semibold">{master||typed}</span>
+      )}
+    </span>
+  );
+}
+function MistakeSection({ title, count, color, bg, border, glow, children }) {
+  if (!count) return null;
+  return (
+    <div className="rounded-2xl overflow-hidden" style={{border:`1px solid ${border}`, boxShadow:`0 0 18px ${glow}`}}>
+      <div className="flex items-center gap-3 px-4 py-2.5" style={{background:bg, borderBottom:`1px solid ${border}`}}>
+        <span className="text-xl font-black" style={{color}}>{count}</span>
+        <span className="font-black text-sm" style={{color}}>{title}</span>
+      </div>
+      <div className="px-4 py-3 space-y-3" style={{background:'rgba(0,0,0,0.18)'}}>{children}</div>
+    </div>
+  );
+}
+function SubRow({ label, items, color, bg, border }) {
+  if (!items.length) return null;
+  return (
+    <div>
+      <p className="text-xs font-black uppercase tracking-widest mb-1.5" style={{color:'rgba(255,255,255,0.3)'}}>
+        {label} <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black ml-1"
+          style={{background:bg, color, border:`1px solid ${border}`}}>{items.length}</span>
+      </p>
+      <div className="flex flex-wrap">
+        {items.map((w,i)=><WordTag key={i} master={w.master} typed={w.typed} color={color} bg={bg} border={border}/>)}
+      </div>
+    </div>
+  );
+}
+function AdminMistakeBreakdown({ comparison }) {
+  if (!comparison?.length) return <p className="text-white/30 text-sm text-center py-4">No data.</p>;
+  const missing      = comparison.filter(w=>w.status==='missing');
+  const extra        = comparison.filter(w=>w.status==='extra');
+  const replace      = comparison.filter(w=>w.status==='replace');
+  const substitution = comparison.filter(w=>w.status==='full'&&w.mistakeType==='substitution');
+  const incomplete   = comparison.filter(w=>w.status==='full'&&w.mistakeType==='incomplete');
+  const repetition   = comparison.filter(w=>w.status==='full'&&w.mistakeType==='repetition');
+  const spelling     = comparison.filter(w=>w.status==='half'&&w.mistakeType==='spelling');
+  const punctuation  = comparison.filter(w=>w.status==='half'&&(w.mistakeType==='punctuation'||w.mistakeType==='comma'));
+  const totalFull = missing.length+extra.length+replace.length+substitution.length+incomplete.length+repetition.length;
+  const totalHalf = spelling.length+punctuation.length;
+  if (!totalFull && !totalHalf) return (
+    <div className="text-center py-10"><div className="text-4xl mb-2">🎉</div>
+      <p className="font-bold text-emerald-400">Perfect — No mistakes!</p></div>
+  );
+  return (
+    <div className="space-y-3">
+      <MistakeSection title="Full Mistakes" count={totalFull} color="#f87171"
+        bg="rgba(239,68,68,0.12)" border="rgba(239,68,68,0.28)" glow="rgba(239,68,68,0.06)">
+        <SubRow label="Missing Words" items={missing} color="#f87171" bg="rgba(239,68,68,0.14)" border="rgba(239,68,68,0.30)"/>
+        <SubRow label="Replace Errors" items={replace} color="#d8b4fe" bg="rgba(168,85,247,0.16)" border="rgba(168,85,247,0.32)"/>
+        <SubRow label="Wrong Words" items={substitution} color="#fca5a5" bg="rgba(239,68,68,0.12)" border="rgba(239,68,68,0.25)"/>
+        <SubRow label="Extra Words" items={extra.map(w=>({master:null,typed:w.typed}))} color="#93c5fd" bg="rgba(59,130,246,0.14)" border="rgba(59,130,246,0.28)"/>
+        <SubRow label="Incomplete Words" items={incomplete} color="#fca5a5" bg="rgba(239,68,68,0.10)" border="rgba(239,68,68,0.22)"/>
+        <SubRow label="Repetitions" items={repetition} color="#fca5a5" bg="rgba(239,68,68,0.10)" border="rgba(239,68,68,0.22)"/>
+      </MistakeSection>
+      <MistakeSection title="Half Mistakes" count={totalHalf} color="#fcd34d"
+        bg="rgba(245,158,11,0.12)" border="rgba(245,158,11,0.28)" glow="rgba(245,158,11,0.06)">
+        <SubRow label="Spelling Errors" items={spelling} color="#fcd34d" bg="rgba(245,158,11,0.14)" border="rgba(245,158,11,0.30)"/>
+        <SubRow label="Punctuation" items={punctuation} color="#fdba74" bg="rgba(249,115,22,0.14)" border="rgba(249,115,22,0.28)"/>
+      </MistakeSection>
+    </div>
+  );
+}
+function AdminTrendChart({ history, currentId }) {
+  if (!history || history.length < 2) return (
+    <div className="text-center py-10"><div className="text-4xl mb-2">📈</div>
+      <p style={{color:'var(--text-2)'}}>Need at least 2 attempts to show trend.</p></div>
+  );
+  const W=520,H=160,PAD={top:18,right:14,bottom:28,left:38};
+  const cw=W-PAD.left-PAD.right, ch=H-PAD.top-PAD.bottom;
+  const sorted=[...history].sort((a,b)=>new Date(a.createdAt)-new Date(b.createdAt));
+  const errV=sorted.map(r=>r.errorPercentage??0), wpmV=sorted.map(r=>r.wpm??0);
+  const maxE=Math.max(...errV,5), maxW=Math.max(...wpmV,10);
+  const xOf=i=>PAD.left+(sorted.length>1?(i/(sorted.length-1))*cw:cw/2);
+  const yE=v=>PAD.top+ch-(v/maxE)*ch, yW=v=>PAD.top+ch-(v/maxW)*ch;
+  const ep=errV.map((v,i)=>`${i===0?'M':'L'}${xOf(i).toFixed(1)},${yE(v).toFixed(1)}`).join(' ');
+  const wp=wpmV.map((v,i)=>`${i===0?'M':'L'}${xOf(i).toFixed(1)},${yW(v).toFixed(1)}`).join(' ');
+  const fmt=d=>new Date(d).toLocaleDateString('en-IN',{day:'numeric',month:'short'});
+  return (
+    <div className="space-y-4">
+      <div className="rounded-2xl p-3 overflow-hidden" style={{background:'var(--bg-surface)',border:'1px solid var(--border)'}}>
+        <div className="flex gap-4 mb-2 text-xs" style={{color:'var(--text-3)'}}>
+          <span className="flex items-center gap-1"><span className="inline-block w-5 h-0.5 bg-red-400 rounded"/>Error %</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-5 border-t-2 border-dashed border-emerald-400"/>WPM</span>
+        </div>
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{height:'150px'}}>
+          {[0,25,50,75,100].map(p=>{const y=PAD.top+ch*(1-p/100),v=(p/100*maxE).toFixed(1);return(
+            <g key={p}><line x1={PAD.left} y1={y} x2={W-PAD.right} y2={y} stroke="rgba(255,255,255,0.05)" strokeWidth="1"/>
+            <text x={PAD.left-4} y={y+3} textAnchor="end" fontSize="8" fill="rgba(255,255,255,0.22)">{v}</text></g>
+          );})}
+          <path d={wp} fill="none" stroke="#34d399" strokeWidth="1.5" strokeDasharray="5 3" strokeLinecap="round" opacity="0.6"/>
+          <path d={ep} fill="none" stroke="#f87171" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          {sorted.map((r,i)=>{
+            const cur=r._id===currentId;
+            return(<g key={r._id}>
+              <circle cx={xOf(i)} cy={yW(wpmV[i])} r={cur?4:2} fill={cur?'#10b981':'#34d399'} opacity="0.8"/>
+              <circle cx={xOf(i)} cy={yE(errV[i])} r={cur?5:2.5} fill={cur?'#ef4444':'#f87171'}
+                stroke={cur?'white':'none'} strokeWidth={cur?1.5:0}/>
+              {cur&&<text x={xOf(i)} y={yE(errV[i])-8} textAnchor="middle" fontSize="8" fontWeight="700" fill="white">{errV[i].toFixed(1)}%</text>}
+            </g>);
+          })}
+        </svg>
+      </div>
+      <div className="space-y-1.5 max-h-48 overflow-y-auto">
+        {[...sorted].reverse().map((r,idx)=>{
+          const rank=sorted.length-idx, cur=r._id===currentId, ec=r.errorPercentage??0;
+          const col=ec<=2?'#34d399':ec<=5?'#60a5fa':ec<=10?'#fbbf24':'#f87171';
+          return(
+            <div key={r._id} className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs"
+              style={{background:cur?'rgba(99,102,241,0.12)':'var(--bg-card)',border:cur?'1px solid rgba(99,102,241,0.35)':'1px solid var(--border)'}}>
+              <span className="w-5 text-center shrink-0" style={{color:'var(--text-3)'}}>#{rank}</span>
+              <div className="flex-1"><div className="h-1 rounded-full overflow-hidden" style={{background:'var(--border)'}}>
+                <div className="h-1 rounded-full" style={{width:`${Math.max(2,100-ec)}%`,background:col}}/></div></div>
+              <span className="font-black shrink-0" style={{color:col}}>{ec.toFixed(2)}%</span>
+              <span className="shrink-0" style={{color:'var(--text-3)'}}>{r.wpm} wpm</span>
+              <span className="shrink-0 hidden sm:inline" style={{color:'var(--text-3)'}}>{fmt(r.createdAt)}</span>
+              {cur&&<span className="px-1.5 py-0.5 rounded-full font-black shrink-0" style={{background:'rgba(99,102,241,0.2)',color:'#818cf8'}}>Now</span>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 /* ─── PDF Status Badge ───────────────────────────────────── */
 function PdfStatusCard({ preview }) {
@@ -639,6 +806,8 @@ export default function AdminDashboard() {
   const [userResultsLoading,setUserResultsLoading]= useState(false);
   const [resultDetail,      setResultDetail]      = useState(null);   // full detail in modal
   const [resultDetailLoading,setResultDetailLoading] = useState(false);
+  const [resultDetailTab,   setResultDetailTab]   = useState('overview');
+  const [resultHistory,     setResultHistory]     = useState([]);     // attempts by same user on same test
   const [audioFile,       setAudioFile]       = useState(null);
   const [audioMsg,        setAudioMsg]        = useState(null);
 
@@ -859,9 +1028,20 @@ export default function AdminDashboard() {
 
   const openResultDetail = async (resultId) => {
     setResultDetail({ loading: true });
+    setResultDetailTab('overview');
+    setResultHistory([]);
     try {
       const { data } = await api.get(`/admin/results/${resultId}`);
       setResultDetail(data);
+      // Also fetch this user's full history for the same test (for trend chart)
+      if (data.userId?._id && data.testId?._id) {
+        api.get(`/admin/users/${data.userId._id}/results`)
+          .then(r => {
+            const history = r.data.filter(res => res.testId?._id === data.testId._id || res.testId === data.testId._id);
+            setResultHistory(history);
+          })
+          .catch(() => {});
+      }
     } catch (err) { setResultDetail(null); }
   };
 
@@ -1825,154 +2005,230 @@ export default function AdminDashboard() {
 
         {/* ── Result Detail Modal ──────────────────────────── */}
         {resultDetail && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in"
-            style={{ background:'rgba(0,0,0,0.85)', backdropFilter:'blur(12px)' }}
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 animate-fade-in"
+            style={{ background:'rgba(0,0,0,0.88)', backdropFilter:'blur(14px)' }}
             onClick={() => setResultDetail(null)}>
-            <div className="w-full max-w-4xl max-h-[90vh] flex flex-col rounded-3xl overflow-hidden animate-scale-in"
+            <div className="w-full max-w-4xl max-h-[92vh] flex flex-col rounded-3xl overflow-hidden animate-scale-in"
               style={{ background:'var(--bg-modal)', border:'1px solid var(--border-hi)', boxShadow:'0 40px 100px rgba(0,0,0,0.7)' }}
               onClick={e => e.stopPropagation()}>
 
-              {/* Top glow */}
-              <div className="absolute top-0 left-0 right-0 h-px"
+              {/* Top glow line */}
+              <div className="absolute top-0 left-0 right-0 h-px pointer-events-none"
                 style={{ background:'linear-gradient(90deg,transparent,rgba(99,102,241,0.7),transparent)' }}/>
 
               {resultDetail.loading ? (
-                <div className="flex items-center justify-center py-24">
-                  <div className="text-4xl animate-spin">⏳</div>
+                <div className="flex items-center justify-center py-24 gap-3">
+                  <div className="w-8 h-8 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin"/>
+                  <p style={{color:'var(--text-3)'}}>Loading result…</p>
                 </div>
-              ) : (
-                <>
-                  {/* Modal header */}
-                  <div className="flex items-start justify-between px-6 py-5 shrink-0"
-                    style={{ borderBottom:'1px solid var(--border)' }}>
-                    <div>
-                      <h3 className="font-black text-base" style={{ color:'var(--text-1)' }}>
-                        🔍 Result Detail
-                      </h3>
-                      <p className="text-xs mt-0.5" style={{ color:'var(--text-3)' }}>
-                        {resultDetail.userId?.name} · {resultDetail.testId?.title}
-                      </p>
-                    </div>
-                    <button onClick={() => setResultDetail(null)}
-                      className="w-8 h-8 rounded-full flex items-center justify-center text-lg hover:rotate-90 transition-all duration-300"
-                      style={{ background:'var(--bg-surface)', color:'var(--text-2)' }}>×</button>
-                  </div>
+              ) : (() => {
+                const rd = resultDetail;
+                const errPct = rd.errorPercentage ?? 0;
+                const acc    = rd.accuracy ?? 0;
+                const grade  = getGrade(errPct);
+                const cmp    = rd.wordComparison || [];
+                const correctCnt = rd.correctWords  ?? cmp.filter(w=>w.status==='correct').length;
+                const missingCnt = rd.missingWords  ?? cmp.filter(w=>w.status==='missing').length;
+                const extraCnt   = rd.extraWords    ?? cmp.filter(w=>w.status==='extra').length;
+                const replaceCnt = rd.replaceErrors ?? cmp.filter(w=>w.status==='replace').length;
 
-                  <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+                const DETAIL_TABS = [
+                  { id:'overview',  icon:'📊', label:'Overview'  },
+                  { id:'diff',      icon:'🔍', label:'Word Diff' },
+                  { id:'mistakes',  icon:'📋', label:'Mistakes'  },
+                  { id:'progress',  icon:'📈', label:'Progress'  },
+                  { id:'texts',     icon:'📝', label:'Texts'     },
+                ];
 
-                    {/* Stats row */}
-                    <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
-                      {[
-                        { label:'Error %',  value:`${resultDetail.errorPercentage?.toFixed(2)}%`, color: resultDetail.errorPercentage<=5?'#34d399':resultDetail.errorPercentage<=10?'#fbbf24':'#f87171' },
-                        { label:'Accuracy', value:`${resultDetail.accuracy?.toFixed(1)}%`,        color:'#a5b4fc' },
-                        { label:'WPM',      value: resultDetail.wpm,                              color:'#34d399' },
-                        { label:'Full Err', value: resultDetail.fullMistakes,                     color:'#f87171' },
-                        { label:'Half Err', value: resultDetail.halfMistakes,                     color:'#fbbf24' },
-                        { label:'Time',     value: fmtTime(resultDetail.timeTaken),               color:'var(--text-2)' },
-                        { label:'Date',     value: new Date(resultDetail.createdAt).toLocaleDateString('en-IN'), color:'var(--text-3)' },
-                      ].map(s => (
-                        <div key={s.label} className="rounded-xl py-2.5 px-3 text-center"
-                          style={{ background:'var(--bg-surface)', border:'1px solid var(--border)' }}>
-                          <p className="text-sm font-black" style={{ color: s.color }}>{s.value}</p>
-                          <p className="text-xs mt-0.5" style={{ color:'var(--text-3)' }}>{s.label}</p>
+                return (
+                  <>
+                    {/* Modal header */}
+                    <div className="flex items-start justify-between px-5 py-4 shrink-0"
+                      style={{ borderBottom:'1px solid var(--border)' }}>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xl">{grade.emoji}</span>
+                          <span className="font-black text-base" style={{color:grade.color}}>{grade.label}</span>
+                          <span className="text-xs px-2 py-0.5 rounded-full font-bold"
+                            style={{background:'rgba(99,102,241,0.15)',color:'#a5b4fc'}}>
+                            {rd.userId?.name}
+                          </span>
+                          {rd.pasteDetected && (
+                            <span className="text-xs px-2 py-0.5 rounded-full font-bold"
+                              style={{background:'rgba(245,158,11,0.15)',color:'#fbbf24',border:'1px solid rgba(245,158,11,0.3)'}}>
+                              ⚠ Paste detected
+                            </span>
+                          )}
                         </div>
+                        <p className="text-xs mt-0.5 truncate" style={{color:'var(--text-3)'}}>
+                          {rd.testId?.title} · {new Date(rd.createdAt).toLocaleString('en-IN')}
+                        </p>
+                      </div>
+                      <button onClick={() => setResultDetail(null)}
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-lg hover:rotate-90 transition-all duration-300 shrink-0 ml-3"
+                        style={{ background:'var(--bg-surface)', color:'var(--text-2)' }}>×</button>
+                    </div>
+
+                    {/* Tab bar */}
+                    <div className="flex shrink-0 overflow-x-auto no-scrollbar"
+                      style={{borderBottom:'1px solid var(--border)'}}>
+                      {DETAIL_TABS.map(t => (
+                        <button key={t.id}
+                          onClick={() => setResultDetailTab(t.id)}
+                          className="flex items-center gap-1.5 px-4 py-3 text-xs font-bold whitespace-nowrap transition-all relative shrink-0"
+                          style={{color: resultDetailTab===t.id ? 'white' : 'var(--text-3)'}}>
+                          {t.icon} {t.label}
+                          {resultDetailTab===t.id && (
+                            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-6 h-0.5 rounded-full"
+                              style={{background:'linear-gradient(90deg,#4f46e5,#7c3aed)'}}/>
+                          )}
+                        </button>
                       ))}
                     </div>
 
-                    {resultDetail.pasteDetected && (
-                      <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm"
-                        style={{ background:'rgba(245,158,11,0.12)', border:'1px solid rgba(245,158,11,0.25)', color:'#fbbf24' }}>
-                        ⚠️ Paste detected during this attempt
-                      </div>
-                    )}
+                    {/* Tab content */}
+                    <div className="flex-1 overflow-y-auto px-5 py-5 space-y-4">
 
-                    {/* Text comparison — side by side */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {/* User's typed text */}
-                      <div className="flex flex-col rounded-2xl overflow-hidden"
-                        style={{ border:'1px solid rgba(239,68,68,0.25)' }}>
-                        <div className="flex items-center gap-2 px-4 py-2.5"
-                          style={{ background:'rgba(239,68,68,0.12)', borderBottom:'1px solid rgba(239,68,68,0.20)' }}>
-                          <span className="text-sm">📝</span>
-                          <span className="text-xs font-black" style={{ color:'#fca5a5' }}>User Typed</span>
-                          <span className="ml-auto text-xs" style={{ color:'rgba(252,165,165,0.5)' }}>
-                            {resultDetail.typedText?.trim().split(/\s+/).filter(Boolean).length || 0} words
-                          </span>
+                      {/* ── OVERVIEW ────────────────────────────── */}
+                      {resultDetailTab === 'overview' && (
+                        <div className="space-y-4 animate-fade-in">
+                          {/* Grade hero strip */}
+                          <div className="flex flex-col sm:flex-row items-center gap-5 rounded-2xl p-4"
+                            style={{background:grade.bg, border:`1px solid ${grade.ring}35`}}>
+                            <div className="flex gap-5 shrink-0">
+                              <ProgressRing value={acc} size={100} stroke={9} color={grade.ring}
+                                label={`${acc.toFixed(0)}%`} sublabel="accuracy"/>
+                              <ProgressRing value={Math.max(0,100-errPct)} size={100} stroke={9}
+                                color={errPct<=5?'#10b981':errPct<=10?'#f59e0b':'#ef4444'}
+                                label={`${errPct.toFixed(1)}%`} sublabel="error"/>
+                            </div>
+                            <div className="flex-1 text-center sm:text-left space-y-1">
+                              <p className="text-white/50 text-sm">
+                                Time: <span className="text-white/80 font-semibold">{fmtTime(rd.timeTaken)}</span>
+                                &nbsp;·&nbsp; Passage: <span className="text-white/80 font-semibold">{rd.totalWords??0} words</span>
+                                &nbsp;·&nbsp; Typed: <span className="text-white/80 font-semibold">{rd.typedWords??0}</span>
+                              </p>
+                              <p className="text-white/50 text-sm">
+                                Speed: <span className="text-white/80 font-semibold">{rd.wpm} wpm</span>
+                                &nbsp;·&nbsp; Student: <span style={{color:grade.color,fontWeight:700}}>{rd.userId?.name}</span>
+                              </p>
+                              {rd.analysisSummary && (
+                                <p className="text-xs mt-1 rounded-xl px-3 py-2"
+                                  style={{background:'rgba(0,0,0,0.25)',color:'rgba(255,255,255,0.45)',fontFamily:'Nirmala UI,Mangal,serif'}}>
+                                  {rd.analysisSummary}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* 8-stat grid */}
+                          <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
+                            {[
+                              { icon:'⚡',  label:'Speed',         value:`${rd.wpm??0} wpm`,      valColor:'#a5b4fc', bg:'rgba(99,102,241,0.12)', border:'rgba(99,102,241,0.22)' },
+                              { icon:'✅',  label:'Correct',       value: correctCnt,              valColor:'#6ee7b7', bg:'rgba(16,185,129,0.10)', border:'rgba(16,185,129,0.22)' },
+                              { icon:'❌',  label:'Full Err',      value: rd.fullMistakes??0,      valColor:'#f87171', bg:'rgba(239,68,68,0.12)',  border:'rgba(239,68,68,0.22)'  },
+                              { icon:'⚠️', label:'Half Err',      value: rd.halfMistakes??0,      valColor:'#fcd34d', bg:'rgba(245,158,11,0.12)', border:'rgba(245,158,11,0.22)' },
+                              { icon:'🔀',  label:'Replace',       value: replaceCnt,              valColor:'#d8b4fe', bg:'rgba(168,85,247,0.12)', border:'rgba(168,85,247,0.22)' },
+                              { icon:'👻',  label:'Missing',       value: missingCnt,              valColor:'#fca5a5', bg:'rgba(239,68,68,0.08)',  border:'rgba(239,68,68,0.18)'  },
+                              { icon:'➕',  label:'Extra',         value: extraCnt,                valColor:'#93c5fd', bg:'rgba(59,130,246,0.10)', border:'rgba(59,130,246,0.20)' },
+                              { icon:'📊',  label:'Total Err',     value: rd.totalError??0,        valColor:'#c4b5fd', bg:'rgba(139,92,246,0.12)', border:'rgba(139,92,246,0.22)' },
+                            ].map(s => (
+                              <div key={s.label} className="flex flex-col items-center p-2.5 rounded-2xl"
+                                style={{background:s.bg, border:`1px solid ${s.border}`}}>
+                                <span className="text-lg mb-0.5">{s.icon}</span>
+                                <span className="text-sm font-black" style={{color:s.valColor}}>{s.value}</span>
+                                <span className="text-[9px] text-white/40 font-semibold mt-0.5 text-center leading-tight">{s.label}</span>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Error % bar */}
+                          <div className="rounded-2xl p-4" style={{background:'var(--bg-surface)',border:'1px solid var(--border)'}}>
+                            <div className="flex items-center justify-between mb-2 text-xs" style={{color:'var(--text-3)'}}>
+                              <span className="font-bold">Error Percentage</span>
+                              <span className="font-black" style={{color:grade.color}}>{errPct.toFixed(2)}%</span>
+                            </div>
+                            <div className="h-2 rounded-full overflow-hidden" style={{background:'var(--border)'}}>
+                              <div className="h-2 rounded-full transition-all duration-700"
+                                style={{width:`${Math.min(100,errPct*2)}%`, background:`linear-gradient(90deg,${grade.ring},${grade.ring}99)`}}/>
+                            </div>
+                            <div className="flex justify-between mt-1 text-[10px]" style={{color:'var(--text-3)'}}>
+                              <span style={{color:'#10b981'}}>Excellent ≤5%</span>
+                              <span style={{color:'#f59e0b'}}>Average ≤12%</span>
+                              <span style={{color:'#ef4444'}}>Needs work &gt;12%</span>
+                            </div>
+                          </div>
                         </div>
-                        <textarea readOnly value={resultDetail.typedText || ''}
-                          className="flex-1 p-4 text-sm resize-none outline-none"
-                          rows={10}
-                          style={{
-                            background:'rgba(239,68,68,0.05)',
-                            color:'var(--text-1)',
-                            fontFamily:'Nirmala UI, Mangal, sans-serif',
-                            lineHeight:'1.8',
-                          }}/>
-                      </div>
+                      )}
 
-                      {/* Master passage */}
-                      <div className="flex flex-col rounded-2xl overflow-hidden"
-                        style={{ border:'1px solid rgba(16,185,129,0.25)' }}>
-                        <div className="flex items-center gap-2 px-4 py-2.5"
-                          style={{ background:'rgba(16,185,129,0.12)', borderBottom:'1px solid rgba(16,185,129,0.20)' }}>
-                          <span className="text-sm">📖</span>
-                          <span className="text-xs font-black" style={{ color:'#6ee7b7' }}>Master Passage</span>
-                          <span className="ml-auto text-xs" style={{ color:'rgba(110,231,183,0.5)' }}>
-                            {resultDetail.testId?.extractedText?.trim().split(/\s+/).filter(Boolean).length || 0} words
-                          </span>
+                      {/* ── WORD DIFF ───────────────────────────── */}
+                      {resultDetailTab === 'diff' && (
+                        <div className="animate-fade-in">
+                          <DiffViewer comparison={cmp} />
                         </div>
-                        <textarea readOnly value={resultDetail.testId?.extractedText || ''}
-                          className="flex-1 p-4 text-sm resize-none outline-none"
-                          rows={10}
-                          style={{
-                            background:'rgba(16,185,129,0.05)',
-                            color:'var(--text-1)',
-                            fontFamily:'Nirmala UI, Mangal, sans-serif',
-                            lineHeight:'1.8',
-                          }}/>
-                      </div>
-                    </div>
+                      )}
 
-                    {/* Word-level diff */}
-                    {resultDetail.wordComparison?.length > 0 && (
-                      <div>
-                        <p className="text-xs font-black uppercase tracking-widest mb-3"
-                          style={{ color:'var(--text-3)' }}>Word-level Analysis</p>
-                        <div className="flex flex-wrap gap-1.5 p-4 rounded-2xl max-h-52 overflow-y-auto"
-                          style={{ background:'var(--bg-surface)', border:'1px solid var(--border)' }}>
-                          {resultDetail.wordComparison.map((w, i) => {
-                            const bg = w.status==='correct'      ? 'rgba(16,185,129,0.15)'
-                                     : w.status==='substitution' ? 'rgba(239,68,68,0.15)'
-                                     : w.status==='omission'     ? 'rgba(245,158,11,0.12)'
-                                     : 'rgba(99,102,241,0.12)';
-                            const cl = w.status==='correct'      ? '#34d399'
-                                     : w.status==='substitution' ? '#f87171'
-                                     : w.status==='omission'     ? '#fbbf24'
-                                     : '#a5b4fc';
-                            return (
-                              <span key={i} className="px-2 py-1 rounded-lg text-xs font-semibold"
-                                style={{ background: bg, color: cl, border:`1px solid ${cl}30`,
-                                  fontFamily:'Nirmala UI, Mangal, sans-serif' }}
-                                title={w.status}>
-                                {w.typedWord || w.word || '∅'}
+                      {/* ── MISTAKES ────────────────────────────── */}
+                      {resultDetailTab === 'mistakes' && (
+                        <div className="animate-fade-in">
+                          <div className="flex items-center justify-between mb-3">
+                            <h4 className="text-sm font-black uppercase tracking-wide" style={{color:'var(--text-3)'}}>Mistake Breakdown</h4>
+                            {cmp.length > 0 && (
+                              <span className="text-xs px-2.5 py-1 rounded-full" style={{background:'var(--bg-surface)',color:'var(--text-3)',border:'1px solid var(--border)'}}>
+                                {cmp.filter(w=>w.status==='correct').length} / {cmp.filter(w=>w.master).length} words correct
                               </span>
-                            );
-                          })}
+                            )}
+                          </div>
+                          <AdminMistakeBreakdown comparison={cmp} />
                         </div>
-                        {/* Legend */}
-                        <div className="flex gap-4 mt-2 text-xs flex-wrap">
-                          {[['#34d399','Correct'],['#f87171','Substitution'],['#fbbf24','Omission'],['#a5b4fc','Other']].map(([c,l]) => (
-                            <span key={l} className="flex items-center gap-1">
-                              <span className="w-2.5 h-2.5 rounded-full" style={{ background:c }}/>
-                              <span style={{ color:'var(--text-3)' }}>{l}</span>
-                            </span>
-                          ))}
+                      )}
+
+                      {/* ── PROGRESS ────────────────────────────── */}
+                      {resultDetailTab === 'progress' && (
+                        <div className="animate-fade-in">
+                          <h4 className="text-sm font-black uppercase tracking-wide mb-3" style={{color:'var(--text-3)'}}>
+                            Progress — {rd.userId?.name} on "{rd.testId?.title}"
+                          </h4>
+                          <AdminTrendChart history={resultHistory} currentId={rd._id} />
                         </div>
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
+                      )}
+
+                      {/* ── TEXTS (admin-only) ───────────────────── */}
+                      {resultDetailTab === 'texts' && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fade-in">
+                          <div className="flex flex-col rounded-2xl overflow-hidden" style={{border:'1px solid rgba(239,68,68,0.25)'}}>
+                            <div className="flex items-center gap-2 px-4 py-2.5"
+                              style={{background:'rgba(239,68,68,0.12)',borderBottom:'1px solid rgba(239,68,68,0.20)'}}>
+                              <span className="text-sm">📝</span>
+                              <span className="text-xs font-black" style={{color:'#fca5a5'}}>User Typed</span>
+                              <span className="ml-auto text-xs" style={{color:'rgba(252,165,165,0.4)'}}>
+                                {rd.typedText?.trim().split(/\s+/).filter(Boolean).length||0} words
+                              </span>
+                            </div>
+                            <textarea readOnly value={rd.typedText||''} rows={12}
+                              className="flex-1 p-4 text-sm resize-none outline-none"
+                              style={{background:'rgba(239,68,68,0.05)',color:'var(--text-1)',fontFamily:'Nirmala UI,Mangal,sans-serif',lineHeight:'1.8'}}/>
+                          </div>
+                          <div className="flex flex-col rounded-2xl overflow-hidden" style={{border:'1px solid rgba(16,185,129,0.25)'}}>
+                            <div className="flex items-center gap-2 px-4 py-2.5"
+                              style={{background:'rgba(16,185,129,0.12)',borderBottom:'1px solid rgba(16,185,129,0.20)'}}>
+                              <span className="text-sm">📖</span>
+                              <span className="text-xs font-black" style={{color:'#6ee7b7'}}>Master Passage</span>
+                              <span className="ml-auto text-xs" style={{color:'rgba(110,231,183,0.4)'}}>
+                                {rd.testId?.extractedText?.trim().split(/\s+/).filter(Boolean).length||0} words
+                              </span>
+                            </div>
+                            <textarea readOnly value={rd.testId?.extractedText||''} rows={12}
+                              className="flex-1 p-4 text-sm resize-none outline-none"
+                              style={{background:'rgba(16,185,129,0.05)',color:'var(--text-1)',fontFamily:'Nirmala UI,Mangal,sans-serif',lineHeight:'1.8'}}/>
+                          </div>
+                        </div>
+                      )}
+
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           </div>
         )}

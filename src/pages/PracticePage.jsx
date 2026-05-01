@@ -41,96 +41,190 @@ const STATUS_META = {
 function PracticeResult({ summary, title, font, fmt, onPracticeAgain, onExit }) {
   const [showDiff, setShowDiff] = useState(false);
 
-  const accuracyColor = summary.accuracy >= 90 ? '#10b981' : summary.accuracy >= 70 ? '#f59e0b' : '#ef4444';
-  const errorColor    = summary.totalError === 0 ? '#10b981' : '#ef4444';
+  const timeMin     = summary.timeTaken / 60;                              // time in minutes
+  const grossSpeed  = summary.speed;                                        // typedWords / timeMin (already computed)
+  const netSpeed    = Math.max(0, Math.round(grossSpeed - (summary.totalError / timeMin)));
+  const deduction   = grossSpeed - netSpeed;                               // WPM lost to errors
+  const halfPenalty = (summary.halfMistakes * 0.5).toFixed(1);            // half errors → 0.5 each
+  const fullPenalty = summary.fullMistakes;                                // full errors → 1 each
 
-  const topCards = [
-    { label:'Speed',        value:`${summary.speed} WPM`,              color:'#6366f1' },
-    { label:'Accuracy',     value:`${summary.accuracy.toFixed(2)}%`,   color: accuracyColor },
-    { label:'Total Error',  value:`${summary.totalError}`,             color: errorColor },
-  ];
-
-  const breakdown = [
-    { label:'Full Mistakes',   value: summary.fullMistakes,   color:'#ef4444' },
-    { label:'Half Mistakes',   value: summary.halfMistakes,   color:'#f59e0b' },
-    { label:'Error %',         value:`${summary.errorPercentage.toFixed(2)}%`, color:'#f87171' },
-  ];
-
-  const wordStats = [
-    { label:'Total Words',   value: summary.totalWords },
-    { label:'Typed Words',   value: summary.typedWords },
-    { label:'Correct',       value: summary.correctWords,  color:'#10b981' },
-    { label:'Wrong',         value: summary.wrongWords,    color:'#ef4444' },
-    { label:'Missing',       value: summary.missingWords,  color:'#8b5cf6' },
-    { label:'Extra',         value: summary.extraWords,    color:'#6366f1' },
-    { label:'Replace',       value: summary.replaceErrors, color:'#f59e0b' },
-  ];
+  const accColor   = summary.accuracy >= 95 ? '#10b981' : summary.accuracy >= 80 ? '#f59e0b' : '#ef4444';
+  const netColor   = netSpeed >= 80 ? '#10b981' : netSpeed >= 50 ? '#f59e0b' : '#a5b4fc';
+  const grossColor = '#6366f1';
 
   return (
     <div className="fixed inset-0 z-30 bg-black/60 backdrop-blur-sm flex items-start justify-center p-4 overflow-y-auto">
-      <div className="w-full max-w-3xl my-4 rounded-3xl overflow-hidden"
+      <div className="w-full max-w-2xl my-4 rounded-3xl overflow-hidden"
         style={{ background:'var(--bg-card)', border:'1px solid var(--border)', boxShadow:'0 30px 90px rgba(0,0,0,0.55)' }}>
 
         {/* ── Header ── */}
-        <div className="p-5 sm:p-6 border-b" style={{ borderColor:'var(--border)' }}>
+        <div className="relative px-5 pt-5 pb-4 border-b" style={{ borderColor:'var(--border)' }}>
+          <div className="absolute top-0 left-0 right-0 h-px"
+            style={{ background:'linear-gradient(90deg,transparent,rgba(99,102,241,0.5),transparent)' }}/>
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.2em] mb-2" style={{ color:'var(--text-3)' }}>Practice complete</p>
-              <h2 className="text-2xl font-black" style={{ color:'var(--text-1)' }}>{title}</h2>
-              <p className="text-sm mt-2" style={{ color:'var(--text-3)' }}>
-                Local-only result · Nothing is saved to the database · Time: {fmt(summary.timeTaken)}
+              <p className="text-xs font-bold uppercase tracking-[0.2em] mb-1.5" style={{ color:'var(--text-3)' }}>
+                Practice Result
               </p>
+              <h2 className="text-xl font-black leading-tight" style={{ color:'var(--text-1)' }}>{title}</h2>
             </div>
             <button onClick={onExit}
               className="shrink-0 px-3 py-2 rounded-xl text-xs font-bold transition-all hover:scale-105"
               style={{ background:'var(--bg-surface)', color:'var(--text-2)', border:'1px solid var(--border)' }}>
-              Exit
+              ✕ Close
             </button>
           </div>
         </div>
 
-        <div className="p-5 sm:p-6 space-y-4">
+        <div className="p-5 space-y-4">
 
-          {/* ── Top 3 KPI cards ── */}
+          {/* ── 1 · Speed Block ── */}
+          <div className="grid grid-cols-2 gap-3">
+            {/* Gross Speed */}
+            <div className="relative rounded-2xl p-4 overflow-hidden"
+              style={{ background:'rgba(99,102,241,0.08)', border:'1px solid rgba(99,102,241,0.22)' }}>
+              <div className="absolute top-0 left-0 right-0 h-px"
+                style={{ background:'linear-gradient(90deg,transparent,rgba(99,102,241,0.6),transparent)' }}/>
+              <p className="text-[10px] font-black uppercase tracking-widest mb-1" style={{ color:'rgba(165,180,252,0.6)' }}>
+                Gross Speed
+              </p>
+              <p className="text-4xl font-black tabular-nums" style={{ color: grossColor }}>{grossSpeed}</p>
+              <p className="text-xs font-semibold mt-0.5" style={{ color:'rgba(165,180,252,0.7)' }}>WPM</p>
+              <p className="text-[10px] mt-2 leading-snug" style={{ color:'var(--text-3)' }}>
+                {summary.typedWords} words ÷ {timeMin.toFixed(1)} min
+              </p>
+            </div>
+
+            {/* Net Speed */}
+            <div className="relative rounded-2xl p-4 overflow-hidden"
+              style={{ background: netSpeed >= 50 ? 'rgba(16,185,129,0.08)' : 'rgba(245,158,11,0.08)',
+                       border: `1px solid ${netSpeed >= 50 ? 'rgba(16,185,129,0.25)' : 'rgba(245,158,11,0.25)'}` }}>
+              <div className="absolute top-0 left-0 right-0 h-px"
+                style={{ background:`linear-gradient(90deg,transparent,${netColor}80,transparent)` }}/>
+              <p className="text-[10px] font-black uppercase tracking-widest mb-1" style={{ color:`${netColor}99` }}>
+                Net Speed
+              </p>
+              <p className="text-4xl font-black tabular-nums" style={{ color: netColor }}>{netSpeed}</p>
+              <p className="text-xs font-semibold mt-0.5" style={{ color:`${netColor}aa` }}>WPM</p>
+              <p className="text-[10px] mt-2 leading-snug" style={{ color:'var(--text-3)' }}>
+                {grossSpeed} − {deduction} deduction
+              </p>
+            </div>
+          </div>
+
+          {/* ── 2 · Accuracy + Time + Words row ── */}
           <div className="grid grid-cols-3 gap-3">
-            {topCards.map(item => (
-              <div key={item.label} className="text-center p-4 sm:p-5 rounded-2xl"
-                style={{ background:'var(--bg-surface)', border:'1px solid var(--border)' }}>
-                <div className="text-2xl sm:text-3xl font-black tabular-nums" style={{ color: item.color }}>{item.value}</div>
-                <div className="text-xs font-semibold uppercase tracking-wide mt-2" style={{ color:'var(--text-3)' }}>{item.label}</div>
-              </div>
-            ))}
+            <div className="text-center p-4 rounded-2xl"
+              style={{ background:'var(--bg-surface)', border:'1px solid var(--border)' }}>
+              <p className="text-2xl font-black tabular-nums" style={{ color: accColor }}>
+                {summary.accuracy.toFixed(1)}%
+              </p>
+              <p className="text-[10px] font-semibold uppercase tracking-wide mt-1.5" style={{ color:'var(--text-3)' }}>
+                Accuracy
+              </p>
+              <p className="text-[9px] mt-1" style={{ color: accColor + 'aa' }}>
+                {summary.accuracy >= 95 ? '✓ Exam ready' : summary.accuracy >= 80 ? '~ Getting there' : '✗ Needs work'}
+              </p>
+            </div>
+
+            <div className="text-center p-4 rounded-2xl"
+              style={{ background:'var(--bg-surface)', border:'1px solid var(--border)' }}>
+              <p className="text-2xl font-black tabular-nums" style={{ color:'var(--text-1)' }}>
+                {summary.typedWords}
+              </p>
+              <p className="text-[10px] font-semibold uppercase tracking-wide mt-1.5" style={{ color:'var(--text-3)' }}>
+                Words Typed
+              </p>
+              <p className="text-[9px] mt-1" style={{ color:'var(--text-3)' }}>
+                of {summary.totalWords} in passage
+              </p>
+            </div>
+
+            <div className="text-center p-4 rounded-2xl"
+              style={{ background:'var(--bg-surface)', border:'1px solid var(--border)' }}>
+              <p className="text-2xl font-black tabular-nums" style={{ color:'var(--text-1)' }}>
+                {fmt(summary.timeTaken)}
+              </p>
+              <p className="text-[10px] font-semibold uppercase tracking-wide mt-1.5" style={{ color:'var(--text-3)' }}>
+                Time Taken
+              </p>
+              <p className="text-[9px] mt-1" style={{ color:'var(--text-3)' }}>
+                = {timeMin.toFixed(2)} minutes
+              </p>
+            </div>
           </div>
 
-          {/* ── Error breakdown ── */}
+          {/* ── 3 · Error Count ── */}
           <div className="rounded-2xl p-4" style={{ background:'var(--bg-surface)', border:'1px solid var(--border)' }}>
-            <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color:'var(--text-3)' }}>Error Breakdown</p>
+            <p className="text-xs font-black uppercase tracking-widest mb-3" style={{ color:'var(--text-3)' }}>Error Count</p>
             <div className="grid grid-cols-3 gap-3">
-              {breakdown.map(b => (
-                <div key={b.label} className="text-center p-3 rounded-xl"
-                  style={{ background:'var(--bg-card)', border:'1px solid var(--border)' }}>
-                  <div className="text-xl font-black tabular-nums" style={{ color: b.color || 'var(--text-1)' }}>{b.value}</div>
-                  <div className="text-xs mt-1" style={{ color:'var(--text-3)' }}>{b.label}</div>
-                </div>
-              ))}
+              <div className="text-center p-3 rounded-xl"
+                style={{ background:'rgba(239,68,68,0.08)', border:'1px solid rgba(239,68,68,0.20)' }}>
+                <p className="text-2xl font-black tabular-nums" style={{ color:'#f87171' }}>{summary.fullMistakes}</p>
+                <p className="text-[10px] mt-1 font-semibold" style={{ color:'#f87171aa' }}>Full Mistakes</p>
+                <p className="text-[9px] mt-0.5" style={{ color:'var(--text-3)' }}>1 penalty each</p>
+              </div>
+              <div className="text-center p-3 rounded-xl"
+                style={{ background:'rgba(245,158,11,0.08)', border:'1px solid rgba(245,158,11,0.20)' }}>
+                <p className="text-2xl font-black tabular-nums" style={{ color:'#fbbf24' }}>{summary.halfMistakes}</p>
+                <p className="text-[10px] mt-1 font-semibold" style={{ color:'#fbbf24aa' }}>Half Mistakes</p>
+                <p className="text-[9px] mt-0.5" style={{ color:'var(--text-3)' }}>2 = 1 full error</p>
+              </div>
+              <div className="text-center p-3 rounded-xl"
+                style={{ background:'rgba(239,68,68,0.05)', border:'1px solid var(--border)' }}>
+                <p className="text-2xl font-black tabular-nums" style={{ color: summary.totalError === 0 ? '#10b981' : '#ef4444' }}>
+                  {summary.totalError}
+                </p>
+                <p className="text-[10px] mt-1 font-semibold" style={{ color:'var(--text-3)' }}>Total Errors</p>
+                <p className="text-[9px] mt-0.5" style={{ color:'var(--text-3)' }}>
+                  {summary.errorPercentage.toFixed(1)}% error rate
+                </p>
+              </div>
             </div>
           </div>
 
-          {/* ── Word count stats ── */}
+          {/* ── 4 · Penalty / Deduction ── */}
           <div className="rounded-2xl p-4" style={{ background:'var(--bg-surface)', border:'1px solid var(--border)' }}>
-            <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color:'var(--text-3)' }}>Word Statistics</p>
-            <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
-              {wordStats.map(s => (
-                <div key={s.label} className="text-center p-2.5 rounded-xl"
-                  style={{ background:'var(--bg-card)', border:'1px solid var(--border)' }}>
-                  <div className="text-lg font-black tabular-nums" style={{ color: s.color || 'var(--text-1)' }}>{s.value}</div>
-                  <div className="text-[10px] leading-tight mt-0.5" style={{ color:'var(--text-3)' }}>{s.label}</div>
+            <p className="text-xs font-black uppercase tracking-widest mb-3" style={{ color:'var(--text-3)' }}>
+              Penalty &amp; Deduction
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+              {/* Formula */}
+              <div className="rounded-xl p-3" style={{ background:'var(--bg-card)', border:'1px solid var(--border)' }}>
+                <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color:'var(--text-3)' }}>Formula used</p>
+                <p className="font-mono text-xs leading-6" style={{ color:'var(--text-2)' }}>
+                  Net = Gross − (Errors ÷ Time)<br/>
+                  <span style={{ color:'#a5b4fc' }}>{grossSpeed}</span>
+                  {' '}−{' '}
+                  <span style={{ color:'#f87171' }}>({summary.totalError} ÷ {timeMin.toFixed(2)})</span>
+                  {' '}={' '}
+                  <span style={{ color: netColor }}>{netSpeed} WPM</span>
+                </p>
+              </div>
+              {/* Breakdown */}
+              <div className="rounded-xl p-3" style={{ background:'var(--bg-card)', border:'1px solid var(--border)' }}>
+                <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color:'var(--text-3)' }}>Error breakdown</p>
+                <div className="space-y-1.5 text-xs" style={{ color:'var(--text-2)' }}>
+                  <div className="flex justify-between">
+                    <span>Full errors × 1</span>
+                    <span style={{ color:'#f87171' }}>−{fullPenalty}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Half errors × 0.5</span>
+                    <span style={{ color:'#fbbf24' }}>−{halfPenalty}</span>
+                  </div>
+                  <div className="flex justify-between border-t pt-1.5 font-black" style={{ borderColor:'var(--border)', color:'var(--text-1)' }}>
+                    <span>Speed deduction</span>
+                    <span style={{ color: deduction > 0 ? '#f87171' : '#10b981' }}>
+                      −{deduction} WPM
+                    </span>
+                  </div>
                 </div>
-              ))}
+              </div>
             </div>
           </div>
 
-          {/* ── Word comparison toggle ── */}
+          {/* ── 5 · Word-by-Word Comparison (collapsible) ── */}
           <div className="rounded-2xl overflow-hidden" style={{ border:'1px solid var(--border)' }}>
             <button
               onClick={() => setShowDiff(v => !v)}
@@ -146,21 +240,18 @@ function PracticeResult({ summary, title, font, fmt, onPracticeAgain, onExit }) 
             </button>
 
             {showDiff && (
-              <div className="p-4 max-h-72 overflow-y-auto" style={{ background:'var(--bg-card)' }}>
+              <div className="p-4 max-h-64 overflow-y-auto" style={{ background:'var(--bg-card)' }}>
                 <div className="flex flex-wrap gap-1.5">
                   {summary.wordComparison.map((w, i) => {
                     const meta = STATUS_META[w.status] || STATUS_META.full;
                     const tooltip = w.status === 'correct'
                       ? w.master
-                      : w.status === 'missing'
-                        ? `Missing: ${w.master}`
-                        : w.status === 'extra'
-                          ? `Extra: ${w.typed}`
-                          : `${w.master} → ${w.typed}`;
+                      : w.status === 'missing' ? `Missing: ${w.master}`
+                      : w.status === 'extra'   ? `Extra: ${w.typed}`
+                      : `${w.master} → ${w.typed}`;
                     return (
-                      <span key={i}
-                        title={tooltip}
-                        className="inline-flex flex-col items-center px-2 py-1 rounded-lg text-xs leading-tight cursor-default select-all"
+                      <span key={i} title={tooltip}
+                        className="inline-flex flex-col items-center px-2 py-1 rounded-lg text-xs leading-tight cursor-default"
                         style={{ background: meta.bg, border:`1px solid ${meta.dot}33`, fontFamily: font }}>
                         <span className="font-semibold" style={{ color: meta.color }}>
                           {w.status === 'missing' ? '—' : (w.typed ?? '—')}
@@ -174,7 +265,6 @@ function PracticeResult({ summary, title, font, fmt, onPracticeAgain, onExit }) 
                     );
                   })}
                 </div>
-                {/* Legend */}
                 <div className="flex flex-wrap gap-2 mt-4 pt-3" style={{ borderTop:'1px solid var(--border)' }}>
                   {Object.entries(STATUS_META).map(([key, meta]) => (
                     <span key={key} className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full"
@@ -189,14 +279,14 @@ function PracticeResult({ summary, title, font, fmt, onPracticeAgain, onExit }) 
           </div>
 
           {/* ── Actions ── */}
-          <div className="flex flex-wrap gap-3 justify-end pt-1">
+          <div className="flex gap-3 pt-1">
             <button onClick={onPracticeAgain}
-              className="px-5 py-3 rounded-2xl font-black transition-all hover:scale-[1.02] active:scale-95"
+              className="flex-1 py-3 rounded-2xl font-black transition-all hover:scale-[1.02] active:scale-95"
               style={{ background:'linear-gradient(135deg,#6366f1,#8b5cf6)', color:'#fff' }}>
               Practice Again
             </button>
             <button onClick={onExit}
-              className="px-5 py-3 rounded-2xl font-semibold transition-all hover:scale-[1.02] active:scale-95"
+              className="flex-1 py-3 rounded-2xl font-semibold transition-all hover:scale-[1.02] active:scale-95"
               style={{ background:'var(--bg-surface)', color:'var(--text-2)', border:'1px solid var(--border)' }}>
               Change Test
             </button>
@@ -235,6 +325,15 @@ export default function PracticePage() {
   // layout / font
   const [layout, setLayout] = useState('mangal');
   const [font,   setFont]   = useState(FONTS[0].value);
+
+  // highlight toggle — persisted in localStorage
+  const [highlightOn, setHighlightOn] = useState(() => {
+    try { return localStorage.getItem('practice-highlight') !== 'off'; } catch { return true; }
+  });
+  const toggleHighlight = (val) => {
+    setHighlightOn(val);
+    try { localStorage.setItem('practice-highlight', val ? 'on' : 'off'); } catch {}
+  };
 
   // refs
   const textareaRef       = useRef(null);
@@ -534,10 +633,10 @@ export default function PracticePage() {
 
   // ── render ──────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen" style={{ background: 'var(--bg-base)', color: 'var(--text-1)' }}>
+    <div className="min-h-screen flex flex-col" style={{ background: 'var(--bg-base)', color: 'var(--text-1)' }}>
 
       {/* ── Header ── */}
-      <div className="sticky top-0 z-10 px-4 py-3 flex items-center gap-3"
+      <div className="shrink-0 z-10 px-4 py-3 flex items-center gap-3"
         style={{
           background: 'var(--bg-nav)',
           borderBottom: '1px solid var(--border)',
@@ -558,28 +657,32 @@ export default function PracticePage() {
         <ThemeToggle />
       </div>
 
-      <div className="max-w-4xl mx-auto px-4 py-6 space-y-4">
+      <div className={selectedTest && sessionPhase === 'typing'
+        ? 'flex-1 flex flex-col min-h-0'
+        : 'max-w-4xl mx-auto px-4 py-6 space-y-4 w-full'}>
 
-        <div className="rounded-3xl p-5 sm:p-6 overflow-hidden relative" style={{ background:'linear-gradient(135deg,var(--bg-card),var(--bg-surface))', border:'1px solid var(--border)' }}>
-          <div className="absolute inset-0 opacity-60 pointer-events-none" style={{ background:'radial-gradient(circle at top right, rgba(99,102,241,0.18), transparent 38%), radial-gradient(circle at bottom left, rgba(16,185,129,0.10), transparent 34%)' }} />
-          <div className="relative flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.24em]" style={{ color:'var(--text-3)' }}>Practice mode</p>
-              <h2 className="mt-2 text-2xl sm:text-3xl font-black" style={{ color:'var(--text-1)' }}>Simple, focused typing practice</h2>
-              <p className="mt-2 text-sm sm:text-base max-w-2xl" style={{ color:'var(--text-2)' }}>
-                Pick a passage, choose a duration, type at your own pace, and review only speed, accuracy, and errors at the end.
-              </p>
-            </div>
-            <div className="flex gap-2 flex-wrap">
-              <span className="px-3 py-1.5 rounded-full text-xs font-semibold" style={{ background:'rgba(99,102,241,0.12)', color:'#a5b4fc', border:'1px solid rgba(99,102,241,0.22)' }}>
-                {tests.length} assigned tests
-              </span>
-              <span className="px-3 py-1.5 rounded-full text-xs font-semibold" style={{ background:'rgba(16,185,129,0.10)', color:'#6ee7b7', border:'1px solid rgba(16,185,129,0.20)' }}>
-                Local result only
-              </span>
+        {sessionPhase !== 'typing' && (
+          <div className="rounded-3xl p-5 sm:p-6 overflow-hidden relative" style={{ background:'linear-gradient(135deg,var(--bg-card),var(--bg-surface))', border:'1px solid var(--border)' }}>
+            <div className="absolute inset-0 opacity-60 pointer-events-none" style={{ background:'radial-gradient(circle at top right, rgba(99,102,241,0.18), transparent 38%), radial-gradient(circle at bottom left, rgba(16,185,129,0.10), transparent 34%)' }} />
+            <div className="relative flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.24em]" style={{ color:'var(--text-3)' }}>Practice mode</p>
+                <h2 className="mt-2 text-2xl sm:text-3xl font-black" style={{ color:'var(--text-1)' }}>Simple, focused typing practice</h2>
+                <p className="mt-2 text-sm sm:text-base max-w-2xl" style={{ color:'var(--text-2)' }}>
+                  Pick a passage, choose a duration, type at your own pace, and review only speed, accuracy, and errors at the end.
+                </p>
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                <span className="px-3 py-1.5 rounded-full text-xs font-semibold" style={{ background:'rgba(99,102,241,0.12)', color:'#a5b4fc', border:'1px solid rgba(99,102,241,0.22)' }}>
+                  {tests.length} assigned tests
+                </span>
+                <span className="px-3 py-1.5 rounded-full text-xs font-semibold" style={{ background:'rgba(16,185,129,0.10)', color:'#6ee7b7', border:'1px solid rgba(16,185,129,0.20)' }}>
+                  Local result only
+                </span>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {error && (
           <div className="p-3 rounded-xl text-sm"
@@ -719,7 +822,78 @@ export default function PracticePage() {
                 </div>
               </div>
 
-              <div className="mt-5 flex flex-wrap gap-3">
+              {/* ── Highlight toggle ── */}
+              <div className="mt-5 p-4 rounded-2xl" style={{ background:'var(--bg-surface)', border:'1px solid var(--border)' }}>
+                <div className="flex items-center justify-between gap-3 mb-3">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-widest" style={{ color:'var(--text-3)' }}>
+                      Reference Highlighting
+                    </p>
+                    <p className="text-xs mt-0.5" style={{ color:'var(--text-3)' }}>
+                      {highlightOn
+                        ? 'Each character highlighted live — green correct, red wrong'
+                        : 'Plain text view — no live feedback while typing'}
+                    </p>
+                  </div>
+                  {/* visual indicator dot */}
+                  <div className="w-2.5 h-2.5 rounded-full shrink-0 transition-all"
+                    style={{ background: highlightOn ? '#10b981' : 'rgba(107,114,128,0.5)',
+                      boxShadow: highlightOn ? '0 0 8px rgba(16,185,129,0.6)' : 'none' }}/>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => toggleHighlight(true)}
+                    className="flex items-center gap-2.5 px-4 py-3 rounded-xl transition-all text-left"
+                    style={{
+                      background: highlightOn
+                        ? 'linear-gradient(135deg,rgba(16,185,129,0.2),rgba(6,182,212,0.12))'
+                        : 'var(--bg-card)',
+                      border: `1px solid ${highlightOn ? 'rgba(16,185,129,0.4)' : 'var(--border)'}`,
+                      boxShadow: highlightOn ? '0 0 16px rgba(16,185,129,0.15)' : 'none',
+                    }}>
+                    <span className="text-xl shrink-0">✨</span>
+                    <div>
+                      <p className="text-xs font-black" style={{ color: highlightOn ? '#6ee7b7' : 'var(--text-2)' }}>
+                        Highlights ON
+                      </p>
+                      <p className="text-[10px] mt-0.5" style={{ color:'var(--text-3)' }}>
+                        Live char feedback
+                      </p>
+                    </div>
+                    {highlightOn && (
+                      <span className="ml-auto text-xs font-black px-2 py-0.5 rounded-full shrink-0"
+                        style={{ background:'rgba(16,185,129,0.2)', color:'#6ee7b7' }}>✓</span>
+                    )}
+                  </button>
+
+                  <button
+                    onClick={() => toggleHighlight(false)}
+                    className="flex items-center gap-2.5 px-4 py-3 rounded-xl transition-all text-left"
+                    style={{
+                      background: !highlightOn
+                        ? 'linear-gradient(135deg,rgba(99,102,241,0.18),rgba(139,92,246,0.12))'
+                        : 'var(--bg-card)',
+                      border: `1px solid ${!highlightOn ? 'rgba(99,102,241,0.4)' : 'var(--border)'}`,
+                      boxShadow: !highlightOn ? '0 0 16px rgba(99,102,241,0.15)' : 'none',
+                    }}>
+                    <span className="text-xl shrink-0">📄</span>
+                    <div>
+                      <p className="text-xs font-black" style={{ color: !highlightOn ? '#a5b4fc' : 'var(--text-2)' }}>
+                        Highlights OFF
+                      </p>
+                      <p className="text-[10px] mt-0.5" style={{ color:'var(--text-3)' }}>
+                        Plain text only
+                      </p>
+                    </div>
+                    {!highlightOn && (
+                      <span className="ml-auto text-xs font-black px-2 py-0.5 rounded-full shrink-0"
+                        style={{ background:'rgba(99,102,241,0.2)', color:'#a5b4fc' }}>✓</span>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-3">
                 <button
                   onClick={startPractice}
                   className="px-5 py-3 rounded-2xl font-black transition-all hover:scale-[1.02] active:scale-95"
@@ -739,8 +913,8 @@ export default function PracticePage() {
 
         {/* ── PRACTICE AREA ── */}
         {selectedTest && sessionPhase === 'typing' && (
-          <>
-            <div className="rounded-3xl p-4 sm:p-5" style={{ background:'var(--bg-card)', border:'1px solid var(--border)' }}>
+          <div className="flex-1 flex flex-col min-h-0 gap-2 max-w-4xl w-full mx-auto px-3 py-2">
+            <div className="shrink-0 rounded-3xl p-4 sm:p-5" style={{ background:'var(--bg-card)', border:'1px solid var(--border)' }}>
               <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
                 <div className="flex items-center gap-3 min-w-0">
                   <button
@@ -770,7 +944,7 @@ export default function PracticePage() {
             </div>
 
             {/* Controls row */}
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="shrink-0 flex flex-wrap items-center gap-2">
 
               {/* Layout buttons — Mangal | Kruti Dev */}
               {LANGUAGE_CATEGORIES.map(cat => {
@@ -807,60 +981,79 @@ export default function PracticePage() {
               </div>
             </div>
 
-            {/* ── Reference text with live highlighting ── */}
-            <div className="p-5 rounded-3xl overflow-auto max-h-64 leading-loose text-[1.1rem] select-none shadow-sm"
-              style={{
-                background: 'var(--bg-card)',
-                border: '1px solid var(--border)',
-                fontFamily: font,
-                scrollBehavior: 'smooth',
-              }}>
-              {refSegs.map((seg, i) => {
-                /* determine appearance */
-                let bg = '', color = 'var(--text-1)', opacity = 0.3;
-                if (i < typedLen) {
-                  if (typedSegs[i] === seg) {
-                    color = '#10b981'; opacity = 1;  // correct → green
-                  } else {
-                    bg = 'rgba(239,68,68,0.25)'; color = '#f87171'; opacity = 1; // wrong → red
-                  }
-                } else if (i === typedLen) {
-                  bg = 'var(--accent)'; color = '#fff'; opacity = 1; // cursor
-                }
+            {/* ── Reference text — highlighted or plain based on toggle ── */}
+            <div className="shrink-0 rounded-3xl overflow-hidden" style={{ border:'1px solid var(--border)' }}>
+              {/* header strip */}
+              <div className="flex items-center justify-between px-4 py-2.5"
+                style={{ background:'var(--bg-surface)', borderBottom:'1px solid var(--border)' }}>
+                <span className="text-xs font-bold uppercase tracking-widest" style={{ color:'var(--text-3)' }}>
+                  Reference Passage
+                </span>
+                {/* inline mini-toggle during typing */}
+                <button
+                  onClick={() => toggleHighlight(!highlightOn)}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black transition-all"
+                  style={{
+                    background: highlightOn ? 'rgba(16,185,129,0.15)' : 'rgba(107,114,128,0.12)',
+                    color: highlightOn ? '#6ee7b7' : 'var(--text-3)',
+                    border: `1px solid ${highlightOn ? 'rgba(16,185,129,0.3)' : 'var(--border)'}`,
+                  }}>
+                  <span>{highlightOn ? '✨' : '📄'}</span>
+                  {highlightOn ? 'Highlights ON' : 'Highlights OFF'}
+                </button>
+              </div>
 
-                return (
-                  <span key={i}
-                    ref={i === typedLen ? cursorSpanRef : null}
-                    style={{
-                      background: bg || 'transparent',
-                      color,
-                      opacity,
-                      borderRadius: '3px',
-                      padding: bg ? '1px 1px' : '0',
-                      transition: 'color 0.08s, background 0.08s',
-                      whiteSpace: seg === '\n' ? 'pre' : undefined,
-                    }}>
-                    {seg === '\n' ? '↵\n' : seg}
+              <div className="p-5 overflow-auto max-h-48 leading-loose text-[1.1rem] select-none"
+                style={{ background:'var(--bg-card)', fontFamily: font, scrollBehavior: 'smooth' }}>
+                {highlightOn ? (
+                  // ── HIGHLIGHTED mode ──
+                  <>
+                    {refSegs.map((seg, i) => {
+                      let bg = '', color = 'var(--text-1)', opacity = 0.3;
+                      if (i < typedLen) {
+                        if (typedSegs[i] === seg) { color = '#10b981'; opacity = 1; }
+                        else { bg = 'rgba(239,68,68,0.25)'; color = '#f87171'; opacity = 1; }
+                      } else if (i === typedLen) {
+                        bg = 'var(--accent)'; color = '#fff'; opacity = 1;
+                      }
+                      return (
+                        <span key={i}
+                          ref={i === typedLen ? cursorSpanRef : null}
+                          style={{
+                            background: bg || 'transparent', color, opacity,
+                            borderRadius: '3px', padding: bg ? '1px 1px' : '0',
+                            transition: 'color 0.08s, background 0.08s',
+                            whiteSpace: seg === '\n' ? 'pre' : undefined,
+                          }}>
+                          {seg === '\n' ? '↵\n' : seg}
+                        </span>
+                      );
+                    })}
+                    {typedLen >= refLen && refLen > 0 && (
+                      <span style={{ color:'#10b981', marginLeft:'4px' }}>✓</span>
+                    )}
+                  </>
+                ) : (
+                  // ── PLAIN mode — no coloring, just the passage ──
+                  <span style={{ color:'var(--text-1)', opacity: 0.85, whiteSpace:'pre-wrap' }}>
+                    {referenceText}
                   </span>
-                );
-              })}
-              {typedLen >= refLen && refLen > 0 && (
-                <span style={{ color: '#10b981', marginLeft: '4px' }}>✓</span>
-              )}
+                )}
+              </div>
             </div>
 
             {/* ── Typing area ── */}
             <textarea
               ref={textareaRef}
-              rows={6}
               placeholder={`Start typing here${!isPassThrough(layout) ? ` (${layout})` : ''}…`}
-              className="w-full resize-none rounded-3xl p-4 sm:p-5 text-[1.05rem] outline-none transition-all"
+              className="flex-1 min-h-0 w-full resize-none rounded-3xl p-4 sm:p-5 text-[1.05rem] outline-none transition-all"
               style={{
                 background: 'var(--bg-card)',
                 border: '1px solid var(--border)',
                 color: 'var(--text-1)',
                 fontFamily: font,
                 caretColor: 'var(--accent)',
+                minHeight: '260px',
               }}
               onKeyDown={handleKeyDown}
               onChange={handleChange}
@@ -874,7 +1067,7 @@ export default function PracticePage() {
               }}
               autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false}
             />
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="shrink-0 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <button onClick={() => resetTyping(true)}
                 className="text-xs px-3 py-2 rounded-xl font-semibold transition-all hover:scale-105"
                 style={{ background: 'var(--bg-surface)', color: 'var(--text-3)', border: '1px solid var(--border)' }}>
@@ -893,7 +1086,7 @@ export default function PracticePage() {
                 </button>
               </div>
             </div>
-          </>
+          </div>
         )}
 
         {selectedTest && sessionPhase === 'result' && summary && (

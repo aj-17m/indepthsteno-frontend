@@ -487,9 +487,20 @@ export default function TestPage() {
           </div>
 
           {/* Phase badge or timer */}
-          {phase === PHASES.TYPING && (
-            <TimerRing timeLeft={timeLeft} total={totalTime} />
-          )}
+          {phase === PHASES.TYPING && (() => {
+            const urgent = timeLeft <= 60;
+            return (
+              <div className="shrink-0 flex items-center gap-2 px-4 py-2 rounded-2xl font-black text-sm tabular-nums"
+                style={{
+                  background: urgent ? 'rgba(239,68,68,0.18)' : 'rgba(99,102,241,0.18)',
+                  color: urgent ? '#f87171' : 'rgba(165,180,252,0.9)',
+                  border: `1px solid ${urgent ? 'rgba(239,68,68,0.3)' : 'rgba(99,102,241,0.3)'}`,
+                  animation: urgent ? 'pulse 1s ease-in-out infinite' : 'none',
+                }}>
+                {urgent ? '⚡' : '⏱'} {formatTime(timeLeft)}
+              </div>
+            );
+          })()}
           {phase === PHASES.AUDIO && (
             <div className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold"
               style={{background:'rgba(99,102,241,0.2)', color:'rgba(165,180,252,0.9)',
@@ -514,11 +525,11 @@ export default function TestPage() {
         </div>
       </header>
 
-      <main className={`relative z-10 flex-1 mx-auto w-full px-4 py-6 space-y-4 ${phase === PHASES.TYPING ? 'max-w-6xl' : 'max-w-3xl'}`}>
+      <main className={`relative z-10 flex-1 flex flex-col mx-auto w-full ${phase === PHASES.TYPING ? 'max-w-6xl' : 'max-w-3xl px-4 py-6 space-y-4'}`}>
 
         {/* ── SELECT PHASE ──────────────────────────── */}
         {phase === PHASES.SELECT && (
-          <div className="space-y-4 animate-fade-in-up">
+          <div className="w-full space-y-4 animate-fade-in-up">
             {/* Settings card */}
             <div className="rounded-3xl p-6 relative overflow-hidden"
               style={{
@@ -728,7 +739,7 @@ export default function TestPage() {
 
         {/* ── AUDIO PHASE ───────────────────────────── */}
         {phase === PHASES.AUDIO && (
-          <div className="space-y-4 animate-fade-in-up">
+          <div className="w-full space-y-4 animate-fade-in-up">
 
             {/* ── Test info card ─────────────────────── */}
             <div className="relative overflow-hidden rounded-3xl"
@@ -843,9 +854,9 @@ export default function TestPage() {
           const liveWpm = elapsed >= 5 ? Math.round((wordCount / elapsed) * 60) : 0;
           const wpmColor = liveWpm >= 80 ? '#34d399' : liveWpm >= 50 ? '#fbbf24' : 'rgba(165,180,252,0.8)';
           return (
-          <div className="space-y-4 animate-fade-in-up">
+          <div className="flex-1 flex flex-col gap-2 animate-fade-in-up px-3 py-2">
             {/* Status bar */}
-            <div className="flex items-center justify-between gap-2 px-4 py-3 rounded-2xl"
+            <div className="shrink-0 flex items-center justify-between gap-2 px-4 py-2.5 rounded-2xl"
               style={{background:'var(--bg-surface)', border:'1px solid var(--border)'}}>
               {(() => {
                 const cat    = getCategoryForLayout(layout);
@@ -901,7 +912,7 @@ export default function TestPage() {
             </div>
 
             {/* ── Focus-mode typing card ── */}
-            <div className="rounded-3xl relative overflow-hidden"
+            <div className="flex-1 flex flex-col rounded-2xl relative overflow-hidden"
               style={{
                 background:'var(--bg-card)',
                 border:'1px solid var(--border)',
@@ -932,7 +943,7 @@ export default function TestPage() {
                 </div>
               </div>
 
-              {/* The textarea itself — full focus-mode height */}
+              {/* The textarea itself — fills all remaining card space */}
               <textarea
                 ref={textareaRef}
                 onChange={e => setTypedText(e.target.value)}
@@ -945,14 +956,13 @@ export default function TestPage() {
                 autoCorrect="off"
                 autoCapitalize="off"
                 placeholder="यहाँ टाइप करें…"
-                className="w-full resize-none transition-all"
+                className="w-full flex-1 resize-none"
                 style={{
                   fontFamily: '"Nirmala UI", Mangal, "Noto Sans Devanagari", sans-serif',
                   fontSize: '18px',
                   lineHeight: '2',
                   letterSpacing: '0.01em',
-                  minHeight: 'calc(100vh - 420px)',
-                  height: 'calc(100vh - 420px)',
+                  minHeight: 'calc(100vh - 320px)',
                   padding: '20px 24px',
                   background: 'transparent',
                   border: 'none',
@@ -984,7 +994,7 @@ export default function TestPage() {
             </div>
 
             {/* Action buttons */}
-            <div className="flex gap-3">
+            <div className="shrink-0 flex gap-3">
               <button onClick={() => setShowBackConfirm(true)}
                 className="px-5 py-3 rounded-2xl text-sm font-bold transition-all flex items-center gap-2"
                 style={{background:'rgba(239,68,68,0.1)', color:'rgba(248,113,113,0.8)', border:'1px solid rgba(239,68,68,0.15)'}}
