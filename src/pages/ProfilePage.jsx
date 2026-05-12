@@ -224,7 +224,7 @@ export default function ProfilePage() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <StatCard icon="📋" label="Total Attempts"  value={stats.total}   suffix=""     decimals={0} grad="135deg,#4f46e5,#6366f1" glow="rgba(99,102,241,0.4)"  delay="0s"/>
             <StatCard icon="🎯" label="Avg Accuracy"    value={stats.avgAcc}  suffix="%"    decimals={1} grad="135deg,#059669,#10b981" glow="rgba(16,185,129,0.4)"  delay="0.06s"/>
-            <StatCard icon="⭐" label="Best Error"      value={stats.bestErr} suffix="%"    decimals={2} grad="135deg,#d97706,#f59e0b" glow="rgba(245,158,11,0.4)"  delay="0.12s"/>
+            <StatCard icon="⭐" label="Lowest Error"    value={stats.bestErr} suffix="%"    decimals={2} grad="135deg,#d97706,#f59e0b" glow="rgba(245,158,11,0.4)"  delay="0.12s"/>
             <StatCard icon="⚡" label="Avg Speed"       value={stats.avgWpm}  suffix=" wpm" decimals={0} grad="135deg,#7c3aed,#8b5cf6" glow="rgba(139,92,246,0.4)"  delay="0.18s"/>
           </div>
         )}
@@ -376,7 +376,7 @@ export default function ProfilePage() {
                           <div className="grid grid-cols-4 gap-2 text-xs" style={{color:'var(--text-3)'}}>
                             <div>
                               <p className="font-black" style={{color: ec.text}}>{t.best.errorPercentage?.toFixed(2)}%</p>
-                              <p>Best Error</p>
+                              <p>Lowest Error</p>
                             </div>
                             <div>
                               <p className="font-bold" style={{color:'var(--text-2)'}}>{t.best.accuracy?.toFixed(1)}%</p>

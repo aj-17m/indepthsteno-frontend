@@ -221,7 +221,7 @@ function PdfStatusCard({ preview }) {
           {warning && <p className="text-xs mt-2 leading-relaxed" style={{ color:'#fbbf24' }}>{warning}</p>}
           {hasDevanagari && (
             <p className="text-xs mt-1" style={{ color:'#34d399' }}>
-              Audio will be generated in Hindi. Review and edit the text below if needed.
+              Review and edit the extracted text below if needed.
             </p>
           )}
         </div>
@@ -574,7 +574,7 @@ function CreateTestForm({ tests, users, onCreated, categories }) {
         {/* Audio */}
         <div>
           <label className="block mb-1" style={labelStyle}>
-            Audio File <span style={{ fontWeight:400, color:'var(--text-3)' }}>(MP3/WAV — leave blank to auto-generate)</span>
+            Audio File <span style={{ fontWeight:400, color:'var(--text-3)' }}>(optional — upload MP3/WAV for this test)</span>
           </label>
           <input type="file" accept="audio/*"
             onChange={e => setAudioFile(e.target.files[0])}
@@ -587,10 +587,10 @@ function CreateTestForm({ tests, users, onCreated, categories }) {
         {!audioFile && (
           <div className="rounded-xl p-3 text-xs flex items-start gap-2"
             style={{ background:'var(--tip-bg)', border:'1px solid var(--tip-border)', color:'var(--tip-text)' }}>
-            <span className="text-base">🤖</span>
+            <span className="text-base">🎵</span>
             <span>
-              <strong>Auto audio generation:</strong> Hindi text (Devanagari) → Python gTTS (high quality Hindi voice).
-              Other languages → English TTS. You can also upload your own MP3/WAV recording for best results.
+              If you do not upload audio, the test will be created without audio.
+              You can attach or replace audio later from the test list.
             </span>
           </div>
         )}
@@ -605,7 +605,7 @@ function CreateTestForm({ tests, users, onCreated, categories }) {
           {uploading ? (
             <>
               <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/>
-              Processing… (extracting + generating audio)
+              Processing… (extracting text and uploading files)
             </>
           ) : '🚀 Create Test'}
         </button>
@@ -787,7 +787,6 @@ export default function AdminDashboard() {
   const [editTestLoading, setEditTestLoading] = useState(false);
   const [editTestSaving,  setEditTestSaving]  = useState(false);
   const [editTestMsg,     setEditTestMsg]     = useState(null);
-  const [editRegenAudio,  setEditRegenAudio]  = useState(false);
   const [textChanged,     setTextChanged]     = useState(false);
 
   // ── Reviews state ─────────────────────────────────────────────────────────
@@ -851,14 +850,6 @@ export default function AdminDashboard() {
       });
       setAudioMsg(makeMsg('Audio replaced successfully!')); fetchAll();
     } catch (err) { setAudioMsg(makeMsg(err.response?.data?.message || 'Failed')); }
-  };
-
-  const regenerateAudio = async (id) => {
-    if (!confirm('Regenerate audio using Python gTTS (Hindi)?')) return;
-    try {
-      await api.post(`/admin/tests/${id}/regenerate-audio`);
-      alert('Audio regenerated!'); fetchAll();
-    } catch (err) { alert(err.response?.data?.message || 'Failed'); }
   };
 
   const handleCreateUser = async (e) => {
@@ -950,7 +941,7 @@ export default function AdminDashboard() {
 
   // ── Edit test handlers ─────────────────────────────────────────────────────
   const openEditTest = async (testId) => {
-    setEditTestMsg(null); setEditRegenAudio(false); setTextChanged(false);
+    setEditTestMsg(null); setTextChanged(false);
     setEditTestLoading(true);
     setEditTestModal({ _id: testId });          // show modal with spinner first
     try {
@@ -970,12 +961,9 @@ export default function AdminDashboard() {
   const handleSaveEditTest = async (e) => {
     e.preventDefault(); setEditTestMsg(null); setEditTestSaving(true);
     try {
-      await api.put(`/admin/tests/${editTestModal._id}`, {
-        ...editTestForm,
-        regenerateAudio: editRegenAudio && textChanged,
-      });
-      setEditTestMsg(makeMsg(editRegenAudio && textChanged ? 'Test saved & audio regenerated!' : 'Test updated successfully!'));
-      setTextChanged(false); setEditRegenAudio(false);
+      await api.put(`/admin/tests/${editTestModal._id}`, editTestForm);
+      setEditTestMsg(makeMsg('Test updated successfully!'));
+      setTextChanged(false);
       fetchAll();
     } catch (err) {
       setEditTestMsg(makeMsg(err.response?.data?.message || 'Save failed'));
@@ -1166,9 +1154,12 @@ export default function AdminDashboard() {
                                 {t.practiceEnabled ? '✏️ Practice On' : '✏️ Practice Off'}
                               </span>
                               <span className="text-xs" style={{ color:'var(--text-3)' }}>
-                                {t.audioType === 'uploaded' ? '🎵 Custom audio' : '🤖 Generated'}
+                                {t.audioType === 'uploaded' ? '🎵 Custom audio' : '🔇 No audio'}
                               </span>
                               <span className="text-xs" style={{ color:'var(--text-3)' }}>⏱ {t.timer ?? 30} min</span>
+                              <span className="text-xs" style={{ color:'var(--text-3)' }}>
+                                🗓 {t.createdAt ? new Date(t.createdAt).toLocaleString('en-IN') : 'Created time unavailable'}
+                              </span>
                               {t.category && <span className="text-xs" style={{ color:'var(--text-3)' }}>{t.category.icon} {t.category.name}</span>}
                             </div>
                           </div>
@@ -1197,11 +1188,6 @@ export default function AdminDashboard() {
                             className="text-xs px-2.5 py-1.5 rounded-lg font-semibold transition hover:opacity-80"
                             style={{ background:'rgba(99,102,241,0.12)', color:'#818cf8', border:'1px solid rgba(99,102,241,0.20)' }}>
                             Replace Audio
-                          </button>
-                          <button onClick={() => regenerateAudio(t._id)}
-                            className="text-xs px-2.5 py-1.5 rounded-lg font-semibold transition hover:opacity-80"
-                            style={{ background:'rgba(139,92,246,0.12)', color:'#c084fc', border:'1px solid rgba(139,92,246,0.20)' }}>
-                            Regen Audio
                           </button>
                           <button onClick={() => loadLeaderboard(t._id)}
                             className="text-xs px-2.5 py-1.5 rounded-lg font-semibold transition hover:opacity-80"
@@ -1837,10 +1823,10 @@ export default function AdminDashboard() {
           results.forEach(r => {
             if (!r.userId) return;
             const uid = r.userId._id;
-            if (!userMap[uid]) userMap[uid] = { ...r.userId, attempts: 0, bestErr: null };
+            if (!userMap[uid]) userMap[uid] = { ...r.userId, attempts: 0, bestAcc: null };
             userMap[uid].attempts++;
-            const ep = r.errorPercentage ?? 100;
-            if (userMap[uid].bestErr === null || ep < userMap[uid].bestErr) userMap[uid].bestErr = ep;
+            const acc = r.accuracy ?? 0;
+            if (userMap[uid].bestAcc === null || acc > userMap[uid].bestAcc) userMap[uid].bestAcc = acc;
           });
           const userList = Object.values(userMap).filter(u =>
             u.name?.toLowerCase().includes(resultSearch.toLowerCase()) ||
@@ -1906,10 +1892,10 @@ export default function AdminDashboard() {
                           <p className="text-sm font-black" style={{ color:'var(--text-1)' }}>{u.attempts}</p>
                           <p className="text-xs" style={{ color:'var(--text-3)' }}>attempts</p>
                         </div>
-                        {u.bestErr !== null && (
+                        {u.bestAcc !== null && (
                           <div className="text-center">
-                            <p className="text-sm font-black" style={{ color: errColor(u.bestErr) }}>{u.bestErr?.toFixed(1)}%</p>
-                            <p className="text-xs" style={{ color:'var(--text-3)' }}>best err</p>
+                            <p className="text-sm font-black" style={{ color: errColor(100 - u.bestAcc) }}>{u.bestAcc?.toFixed(1)}%</p>
+                            <p className="text-xs" style={{ color:'var(--text-3)' }}>best accuracy</p>
                           </div>
                         )}
                         <svg className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity"
@@ -2005,11 +1991,11 @@ export default function AdminDashboard() {
 
         {/* ── Result Detail Modal ──────────────────────────── */}
         {resultDetail && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 animate-fade-in"
+          <div className="fixed inset-0 z-50 flex items-stretch justify-stretch p-0 animate-fade-in"
             style={{ background:'rgba(0,0,0,0.88)', backdropFilter:'blur(14px)' }}
             onClick={() => setResultDetail(null)}>
-            <div className="w-full max-w-4xl max-h-[92vh] flex flex-col rounded-3xl overflow-hidden animate-scale-in"
-              style={{ background:'var(--bg-modal)', border:'1px solid var(--border-hi)', boxShadow:'0 40px 100px rgba(0,0,0,0.7)' }}
+            <div className="w-full h-full flex flex-col rounded-none overflow-hidden animate-scale-in"
+              style={{ background:'var(--bg-modal)', border:'none', boxShadow:'none' }}
               onClick={e => e.stopPropagation()}>
 
               {/* Top glow line */}
@@ -2499,6 +2485,11 @@ export default function AdminDashboard() {
                 <p className="text-xs mt-0.5 truncate max-w-sm" style={{ color:'var(--text-3)' }}>
                   {editTestLoading ? 'Loading…' : editTestModal.title}
                 </p>
+                {!editTestLoading && editTestModal.createdAt && (
+                  <p className="text-xs mt-0.5" style={{ color:'var(--text-3)' }}>
+                    Created {new Date(editTestModal.createdAt).toLocaleString('en-IN')}
+                  </p>
+                )}
               </div>
               <button onClick={() => setEditTestModal(null)} disabled={editTestSaving}
                 className="w-8 h-8 rounded-full flex items-center justify-center text-lg transition hover:rotate-90 duration-300"
@@ -2566,23 +2557,6 @@ export default function AdminDashboard() {
                         </div>
                       </div>
 
-                      {/* Audio regen notice */}
-                      {textChanged && (
-                        <label className="flex items-start gap-3 rounded-xl px-3 py-3 cursor-pointer animate-scale-in"
-                          style={{ background:'rgba(245,158,11,0.08)', border:'1px solid rgba(245,158,11,0.25)' }}>
-                          <input type="checkbox" checked={editRegenAudio}
-                            onChange={e => setEditRegenAudio(e.target.checked)}
-                            className="mt-0.5 w-4 h-4 accent-amber-400 shrink-0"/>
-                          <div>
-                            <p className="text-sm font-bold" style={{ color:'#fbbf24' }}>
-                              🔄 Regenerate audio
-                            </p>
-                            <p className="text-xs mt-0.5" style={{ color:'rgba(251,191,36,0.7)' }}>
-                              Passage text was changed — regenerate Hindi audio to match the new content.
-                            </p>
-                          </div>
-                        </label>
-                      )}
                     </div>
 
                     {/* ── Right column: master passage ── */}
@@ -2623,7 +2597,7 @@ export default function AdminDashboard() {
                         onBlur={e =>  { if (!textChanged) { e.target.style.border='1px solid var(--border)';    e.target.style.boxShadow='none'; }}}
                       />
                       <p className="text-xs" style={{ color:'var(--text-3)' }}>
-                        💡 Edit the passage text directly. If you changed the text, check "Regenerate audio" on the left to update the audio file as well.
+                        💡 Edit the passage text directly. If you change the content, replace the audio manually if needed.
                       </p>
                     </div>
                   </div>
@@ -2650,7 +2624,7 @@ export default function AdminDashboard() {
                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
                           </svg>
-                          {editRegenAudio && textChanged ? 'Saving & Regenerating…' : 'Saving…'}
+                          Saving…
                         </>
                       ) : '💾 Save Changes'}
                     </button>

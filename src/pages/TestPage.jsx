@@ -222,6 +222,7 @@ export default function TestPage() {
   const [showBackConfirm,setShowBackConfirm]= useState(false);
   const [savedDraft,     setSavedDraft]     = useState(null);
   const [showKeyRef,     setShowKeyRef]     = useState(false); // draft text from localStorage
+  const [isMaximized,    setIsMaximized]    = useState(false); // fullscreen mode for typing
 
   const timerRef           = useRef(null);
   const textareaRef        = useRef(null);
@@ -268,6 +269,24 @@ export default function TestPage() {
     const el = textareaRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [typedText]);
+
+  // Keyboard shortcuts for fullscreen (Alt+F) and ESC to exit
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Alt+F for fullscreen toggle
+      if (e.altKey && e.key === 'f') {
+        e.preventDefault();
+        if (phase === PHASES.TYPING) setIsMaximized(prev => !prev);
+      }
+      // ESC to exit fullscreen
+      if (e.key === 'Escape' && isMaximized) {
+        e.preventDefault();
+        setIsMaximized(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [phase, isMaximized]);
 
   const handleAudioEnded = useCallback(() => {
     const secs = (test?.timer ?? 30) * 60;
@@ -711,6 +730,8 @@ export default function TestPage() {
                     '🚫 Copy-paste is completely disabled',
                     '🔁 Audio can be replayed unlimited times',
                     '⏩ No forward seeking in audio',
+                    cat === 'inscript'    && '⌨️ Inscript layout active — Unicode Devanagari output (no OS install needed)',
+                    cat === 'inscript'    && '📝 All output is Unicode Devanagari — compatible with any Hindi font',
                     cat === 'mangal'      && '⌨️ Mangal layout active — Unicode Devanagari output (no OS install needed)',
                     cat === 'mangal'      && '📝 All output is Unicode Devanagari — compatible with any Hindi font',
                     layout === 'krutidev' && '🔄 KrutiDev keys auto-convert to Unicode — evaluation works correctly',
@@ -854,7 +875,8 @@ export default function TestPage() {
           const liveWpm = elapsed >= 5 ? Math.round((wordCount / elapsed) * 60) : 0;
           const wpmColor = liveWpm >= 80 ? '#34d399' : liveWpm >= 50 ? '#fbbf24' : 'rgba(165,180,252,0.8)';
           return (
-          <div className="flex-1 flex flex-col gap-2 animate-fade-in-up px-3 py-2">
+          <div className={isMaximized ? "fixed inset-0 z-50 flex flex-col" : "flex-1 flex flex-col gap-2 animate-fade-in-up px-3 py-2"}
+            style={isMaximized ? {background:'var(--bg-base)', padding:'0.5rem'} : {}}>
             {/* Status bar */}
             <div className="shrink-0 flex items-center justify-between gap-2 px-4 py-2.5 rounded-2xl"
               style={{background:'var(--bg-surface)', border:'1px solid var(--border)'}}>
@@ -930,6 +952,14 @@ export default function TestPage() {
                   <span className="text-sm font-bold" style={{color:'var(--text-2)'}}>Type what you heard</span>
                 </div>
                 <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setIsMaximized(!isMaximized)}
+                    title={isMaximized ? "Exit fullscreen (Esc)" : "Fullscreen (Alt+F)"}
+                    className="p-2 rounded-lg hover:bg-white/10 transition-colors text-base"
+                    style={{color:'var(--text-2)'}}
+                  >
+                    {isMaximized ? '⛶' : '⛶'}
+                  </button>
                   <span className="text-xs px-2.5 py-1 rounded-lg font-semibold"
                     style={{background:'var(--bg-surface)', color:'var(--text-3)', border:'1px solid var(--border)'}}>
                     ⌨️ {(() => { const c = getCategoryForLayout(layout); const cat = LANGUAGE_CATEGORIES.find(x => x.value === c); const sub = cat?.layouts?.find(l => l.value === layout); return sub ? sub.label : cat?.label ?? layout; })()}
@@ -994,7 +1024,7 @@ export default function TestPage() {
             </div>
 
             {/* Action buttons */}
-            <div className="shrink-0 flex gap-3">
+            <div className={isMaximized ? "shrink-0 flex gap-3 px-3 pb-2" : "shrink-0 flex gap-3"}>
               <button onClick={() => setShowBackConfirm(true)}
                 className="px-5 py-3 rounded-2xl text-sm font-bold transition-all flex items-center gap-2"
                 style={{background:'rgba(239,68,68,0.1)', color:'rgba(248,113,113,0.8)', border:'1px solid rgba(239,68,68,0.15)'}}

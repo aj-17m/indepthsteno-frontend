@@ -946,7 +946,7 @@ export default function PracticePage() {
             {/* Controls row */}
             <div className="shrink-0 flex flex-wrap items-center gap-2">
 
-              {/* Layout buttons — Mangal | Kruti Dev */}
+              {/* Layout buttons — Inscript | Mangal | Kruti Dev */}
               {LANGUAGE_CATEGORIES.map(cat => {
                 const isActive = activeCat === cat.value;
                 return (

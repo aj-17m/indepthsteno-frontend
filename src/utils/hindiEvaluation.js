@@ -56,6 +56,14 @@ function numericEquivalent(a, b) {
   return false;
 }
 
+function isWordLikeToken(token) {
+  return /[A-Za-z0-9\u0900-\u097F]/.test(normaliseWord(token));
+}
+
+function countWordLikeTokens(tokens) {
+  return tokens.filter(isWordLikeToken).length;
+}
+
 function tokenise(text) {
   return text
     .replace(DANDA, ' । ')
@@ -162,7 +170,9 @@ function detectRepetitions(typedWords) {
 export function evaluateSSC(masterText, typedText) {
   const masterTokens = tokenise(masterText);
   const typedTokens  = tokenise(typedText);
-  const repeated     = detectRepetitions(typedTokens);
+  const masterWordCount = countWordLikeTokens(masterTokens);
+  const typedWordTokens  = typedTokens.filter(isWordLikeToken);
+  const repeated         = detectRepetitions(typedWordTokens);
 
   const alignment = alignWords(masterTokens, typedTokens);
 
@@ -174,12 +184,12 @@ export function evaluateSSC(masterText, typedText) {
   let correctWords  = 0;
 
   const wordComparison = [];
-  let typedIdx = 0;
+  let typedWordIdx = 0;
 
   for (const pair of alignment) {
     let cls = classifyPair(pair.master, pair.typed);
 
-    if (pair.typed && repeated.has(typedIdx)) {
+    if (pair.typed && isWordLikeToken(pair.typed) && repeated.has(typedWordIdx)) {
       cls = { status:'full', mistakeType:'repetition', errorCategory:'full', fullScore:1, halfScore:0 };
     }
 
@@ -202,15 +212,15 @@ export function evaluateSSC(masterText, typedText) {
       errorCategory: cls.errorCategory,
     });
 
-    if (pair.typed) typedIdx++;
+    if (pair.typed && isWordLikeToken(pair.typed)) typedWordIdx++;
   }
 
   const wrongWords = wordComparison.filter(
     w => w.status !== 'correct' && w.status !== 'missing' && w.status !== 'extra'
   ).length;
 
-  const totalWords      = masterTokens.length;
-  const typedWordsCount = typedTokens.length;
+  const totalWords      = masterWordCount;
+  const typedWordsCount = typedWordTokens.length;
   const totalError      = fullMistakes + halfMistakes / 2;
   const errorPercentage = totalWords > 0
     ? Math.round((totalError / totalWords) * 10000) / 100

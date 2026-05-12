@@ -377,7 +377,7 @@ function StatsBar({ results }) {
     },
     {
       grad:'135deg,#d97706,#f59e0b', glow:'rgba(245,158,11,0.35)',
-      front:{ label:'Best Error',   value: parseFloat(stats.bestErr), suffix:'%',   icon:'⭐', hint: parseFloat(stats.bestErr) <= goalErr ? '✓ Excellent' : `Goal: ≤${goalErr}%` },
+      front:{ label:'Lowest Error', value: parseFloat(stats.bestErr), suffix:'%',   icon:'⭐', hint: parseFloat(stats.bestErr) <= goalErr ? '✓ Excellent' : `Goal: ≤${goalErr}%` },
       back :{ label:'Recent Avg Error', value: avgErrRecent != null ? +avgErrRecent.toFixed(2) : 0, suffix:'%', icon: errTrend != null && errTrend < 0 ? '📉' : '📈',
               hint: errTrend != null ? (errTrend < 0 ? `↓ ${Math.abs(errTrend).toFixed(1)}% vs overall` : `↑ ${errTrend.toFixed(1)}% vs overall`) : null },
     },
@@ -729,7 +729,7 @@ function ProfileTab({ user }) {
           {[
             { label:'Total Attempts', value: stats.total,           suffix:'',    icon:'📋', grad:'135deg,#4f46e5,#6366f1' },
             { label:'Avg Accuracy',   value: stats.avgAcc,          suffix:'%',   icon:'🎯', grad:'135deg,#059669,#10b981' },
-            { label:'Best Error',     value: stats.bestErr ?? '—',  suffix: stats.bestErr != null ? '%' : '', icon:'⭐', grad:'135deg,#d97706,#f59e0b' },
+            { label:'Lowest Error',   value: stats.bestErr ?? '—',  suffix: stats.bestErr != null ? '%' : '', icon:'⭐', grad:'135deg,#d97706,#f59e0b' },
             { label:'Avg Speed',      value: stats.avgWpm,          suffix:' wpm',icon:'⚡', grad:'135deg,#7c3aed,#8b5cf6' },
           ].map((s, i) => (
             <div key={s.label}

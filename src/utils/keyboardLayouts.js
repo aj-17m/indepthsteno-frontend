@@ -165,10 +165,17 @@ export const LAYOUT_MAPS = {
 ───────────────────────────────────────────────────────────────────────────── */
 export const LANGUAGE_CATEGORIES = [
   {
+    value   : 'inscript',
+    label   : 'Inscript',
+    icon    : '⌨️',
+    desc    : 'BIS IS 15988 Devanagari layout — no OS extension needed',
+    layouts : null,
+  },
+  {
     value   : 'mangal',
     label   : 'Mangal',
     icon    : '🇮🇳',
-    desc    : 'Mangal font layout — Unicode Devanagari',
+    desc    : 'Unicode Devanagari layout — good for standard Hindi typing',
     layouts : null,
   },
   {
@@ -199,8 +206,9 @@ export function isKrutidev(layout) {
 
 /** Derive the parent language-category value from an active layout key. */
 export function getCategoryForLayout(layout) {
+  if (layout === 'inscript') return 'inscript';
   if (layout === 'krutidev') return 'krutidev';
-  return 'mangal';   // mangal (and any legacy: inscript | cbi | gail)
+  return 'mangal';   // mangal (and legacy: cbi | gail)
 }
 
 /**
