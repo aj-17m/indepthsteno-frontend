@@ -56,8 +56,20 @@ function numericEquivalent(a, b) {
   return false;
 }
 
+/**
+ * Check if token contains alphanumeric or Devanagari characters.
+ * Pure punctuation tokens return false.
+ */
 function isWordLikeToken(token) {
   return /[A-Za-z0-9\u0900-\u097F]/.test(normaliseWord(token));
+}
+
+/**
+ * Extract only the alphanumeric/Devanagari content from a token (remove punctuation).
+ * Used for punctuation-aware comparisons.
+ */
+function extractAlphanumericContent(token) {
+  return normaliseWord(token).replace(/[,।.;:!?'\-"|]/g, '');
 }
 
 function countWordLikeTokens(tokens) {
@@ -122,9 +134,18 @@ function alignWords(masterWords, typedWords) {
 
 function classifyPair(master, typed) {
   if (!master && typed) {
+    // Only count as error if typed token contains alphanumeric content
+    if (!isWordLikeToken(typed)) {
+      return { status:'extra', mistakeType:'extra_punctuation', errorCategory:'none', fullScore:0, halfScore:0 };
+    }
     return { status:'extra', mistakeType:'addition', errorCategory:'full', fullScore:1, halfScore:0 };
   }
   if (master && !typed) {
+    // If master is pure punctuation, it's a half error (missing punctuation)
+    if (!isWordLikeToken(master)) {
+      return { status:'missing', mistakeType:'missing_punctuation', errorCategory:'half', fullScore:0, halfScore:1 };
+    }
+    // If master has alphanumeric content, it's a full error (missing word)
     return { status:'missing', mistakeType:'omission', errorCategory:'full', fullScore:1, halfScore:0 };
   }
 
@@ -140,6 +161,20 @@ function classifyPair(master, typed) {
 
   const dist   = levenshtein(mn, tn);
   const maxLen = Math.max(mn.length, tn.length, 1);
+
+  // Extract alphanumeric content (remove punctuation for comparison)
+  const masterAlphaNum = extractAlphanumericContent(master);
+  const typedAlphaNum = extractAlphanumericContent(typed);
+
+  // If alphanumeric content matches exactly, but punctuation differs → half error
+  // This handles: missing punctuation, extra punctuation, or different punctuation
+  // Examples:
+  //   "hello" vs "hello,"  → half error (extra punctuation)
+  //   "hello," vs "hello"  → half error (missing punctuation)
+  //   "hello," vs "hello-" → half error (different punctuation)
+  if (masterAlphaNum === typedAlphaNum && masterAlphaNum.length > 0) {
+    return { status:'half', mistakeType:'punctuation', errorCategory:'half', fullScore:0, halfScore:1 };
+  }
 
   if (mn.replace(/[,।.;:!?]/g,'') === tn.replace(/[,।.;:!?]/g,'')) {
     return { status:'half', mistakeType:'punctuation', errorCategory:'half', fullScore:0, halfScore:1 };
@@ -170,6 +205,8 @@ function detectRepetitions(typedWords) {
 export function evaluateSSC(masterText, typedText) {
   const masterTokens = tokenise(masterText);
   const typedTokens  = tokenise(typedText);
+  
+  // Only count tokens that contain alphanumeric/Devanagari characters
   const masterWordCount = countWordLikeTokens(masterTokens);
   const typedWordTokens  = typedTokens.filter(isWordLikeToken);
   const repeated         = detectRepetitions(typedWordTokens);
@@ -195,8 +232,8 @@ export function evaluateSSC(masterText, typedText) {
 
     switch (cls.status) {
       case 'correct':  correctWords++;  break;
-      case 'missing':  missingWords++;  break;
-      case 'extra':    extraWords++;    break;
+      case 'missing':  if (isWordLikeToken(pair.master)) missingWords++;  break;
+      case 'extra':    if (isWordLikeToken(pair.typed)) extraWords++;     break;
       case 'replace':  replaceErrors++; break;
       default: break;
     }

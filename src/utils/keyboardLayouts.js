@@ -56,6 +56,18 @@ const CBI = {
    independent vowel depending on what was typed before it)
 ───────────────────────────────────────────────────────────────────────────── */
 
+/** Number row — Devanagari numerals */
+export const INSCRIPT_NUMERALS = {
+  '1':'१', '2':'२', '3':'३', '4':'४', '5':'५',
+  '6':'६', '7':'७', '8':'८', '9':'९', '0':'०',
+};
+
+/** Shifted number row — pass-through ASCII symbols */
+export const INSCRIPT_NUMERALS_SHIFT = {
+  '!':'!', '@':'@', '#':'#', '$':'$', '%':'%',
+  '^':'^', '&':'&', '*':'*', '(':'(', ')':')',
+};
+
 /** Unshifted consonants */
 export const INSCRIPT_BASE = {
   k:'क', g:'ग', c:'च', j:'ज', t:'ट', d:'ड', n:'ण',
@@ -109,6 +121,8 @@ export const INSCRIPT_SPECIAL = {
  * (k, h, e, o, O) show their consonant/vowel form here.
  */
 const INSCRIPT_DISPLAY = {
+  ...INSCRIPT_NUMERALS,      // numeric keys (1-0)
+  ...INSCRIPT_NUMERALS_SHIFT, // shifted numeric keys (!@#$%^&*())
   ...INSCRIPT_MATRA,    // matra keys as base
   ...INSCRIPT_BASE,     // consonants override (k=क over k=ा, h=ह)
   ...INSCRIPT_SHIFT,
@@ -282,12 +296,20 @@ export function processInscriptBuffer(rawBuffer) {
   for (const key of rawBuffer) {
     if (key === '\n' || key === ' ') { result += key; continue; }
 
+    // Numeric keys (1-0, !@#$%^&*()) are not context-sensitive
+    let ch = INSCRIPT_NUMERALS[key]
+      ?? INSCRIPT_NUMERALS_SHIFT[key];
+    
+    if (ch) {
+      result += ch;
+      continue;
+    }
+
     const chars    = [...result];
     const lastChar = chars[chars.length - 1] ?? '';
     const afterHalant    = lastChar === '\u094D';
     const afterConsonant = !afterHalant && isDevanagariConsonant(lastChar);
 
-    let ch;
     if (afterHalant) {
       ch = INSCRIPT_SHIFT[key]
         ?? INSCRIPT_BASE[key]
