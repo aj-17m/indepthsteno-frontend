@@ -1001,73 +1001,124 @@ function TestsTab({ tests, testMeta, loading, catsLoading, categories, results, 
           </span>
         </div>
 
-        {/* Category pill filter row */}
-        {!loading && !catsLoading && tests.length > 0 && catCards.length > 0 && (
-          <div className="flex items-center gap-2 mb-4 overflow-x-auto pb-1 no-scrollbar">
-            {/* All pill */}
-            <button
-              onClick={() => setActiveCat(ALL_KEY)}
-              className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all"
-              style={{
-                background: activeCat === ALL_KEY ? 'var(--accent)' : 'var(--bg-surface)',
-                color: activeCat === ALL_KEY ? 'white' : 'var(--text-2)',
-                border: activeCat === ALL_KEY ? 'none' : '1px solid var(--border)',
-                boxShadow: activeCat === ALL_KEY ? '0 4px 12px var(--accent-glow)' : 'none',
-              }}>
-              📋 All
-              <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black"
-                style={{
-                  background: activeCat === ALL_KEY ? 'rgba(255,255,255,0.25)' : 'var(--bg-card)',
-                  color: activeCat === ALL_KEY ? 'white' : 'var(--text-3)',
-                }}>
-                {tests.length}
-              </span>
-            </button>
+         {/* Category card grid filter - More visible and attractive */}
+         {!loading && !catsLoading && tests.length > 0 && (catCards.length > 0 || uncategorizedCount > 0) && (
+           <div className="mb-5">
+             <p className="text-xs font-bold mb-3 flex items-center gap-2" style={{color:'var(--text-3)'}}>
+               <span>📂 Filter by Category</span>
+             </p>
+             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+               {/* All tests card */}
+               <button
+                 onClick={() => setActiveCat(ALL_KEY)}
+                 className="relative overflow-hidden rounded-2xl p-4 transition-all duration-200 group"
+                 style={{
+                   background: activeCat === ALL_KEY ? 'var(--accent)' : 'var(--bg-surface)',
+                   border: activeCat === ALL_KEY ? 'none' : '1px solid var(--border)',
+                   boxShadow: activeCat === ALL_KEY ? '0 8px 24px var(--accent-glow)' : 'none',
+                   transform: activeCat === ALL_KEY ? 'scale(1.04)' : 'scale(1)',
+                 }}
+                 onMouseEnter={e => {
+                   if (activeCat !== ALL_KEY) {
+                     e.currentTarget.style.transform = 'scale(1.05) translateY(-2px)';
+                     e.currentTarget.style.borderColor = 'var(--accent)';
+                   }
+                 }}
+                 onMouseLeave={e => {
+                   if (activeCat !== ALL_KEY) {
+                     e.currentTarget.style.transform = 'scale(1)';
+                     e.currentTarget.style.borderColor = 'var(--border)';
+                   }
+                 }}>
+                 <div className="flex flex-col items-center text-center gap-2">
+                   <span className="text-3xl">📋</span>
+                   <div>
+                     <p className="text-xs font-black" style={{color: activeCat === ALL_KEY ? 'white' : 'var(--text-1)'}}>
+                       All Tests
+                     </p>
+                     <span className="text-xl font-black" style={{color: activeCat === ALL_KEY ? 'white' : 'var(--accent)'}}>
+                       {tests.length}
+                     </span>
+                   </div>
+                 </div>
+               </button>
 
-            {/* Category pills */}
-            {catCards.map(cat => (
-              <button key={cat._id}
-                onClick={() => setActiveCat(cat._id)}
-                className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap"
-                style={{
-                  background: activeCat === cat._id ? `${cat.color}` : `${cat.color}12`,
-                  color: activeCat === cat._id ? 'white' : cat.color,
-                  border: `1px solid ${cat.color}35`,
-                  boxShadow: activeCat === cat._id ? `0 4px 12px ${cat.color}50` : 'none',
-                }}>
-                {cat.icon} {cat.name}
-                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black"
-                  style={{
-                    background: activeCat === cat._id ? 'rgba(255,255,255,0.25)' : `${cat.color}20`,
-                    color: activeCat === cat._id ? 'white' : cat.color,
-                  }}>
-                  {cat.count}
-                </span>
-              </button>
-            ))}
+               {/* Category cards */}
+               {catCards.map(cat => (
+                 <button key={cat._id}
+                   onClick={() => setActiveCat(cat._id)}
+                   className="relative overflow-hidden rounded-2xl p-4 transition-all duration-200 group"
+                   style={{
+                     background: activeCat === cat._id ? cat.color : `${cat.color}12`,
+                     border: activeCat === cat._id ? 'none' : `1px solid ${cat.color}35`,
+                     boxShadow: activeCat === cat._id ? `0 8px 24px ${cat.color}50` : 'none',
+                     transform: activeCat === cat._id ? 'scale(1.04)' : 'scale(1)',
+                   }}
+                   onMouseEnter={e => {
+                     if (activeCat !== cat._id) {
+                       e.currentTarget.style.transform = 'scale(1.05) translateY(-2px)';
+                       e.currentTarget.style.borderColor = cat.color;
+                     }
+                   }}
+                   onMouseLeave={e => {
+                     if (activeCat !== cat._id) {
+                       e.currentTarget.style.transform = 'scale(1)';
+                       e.currentTarget.style.borderColor = `${cat.color}35`;
+                     }
+                   }}>
+                   <div className="flex flex-col items-center text-center gap-2">
+                     <span className="text-3xl">{cat.icon}</span>
+                     <div>
+                       <p className="text-xs font-black truncate" style={{color: activeCat === cat._id ? 'white' : cat.color}}>
+                         {cat.name}
+                       </p>
+                       <span className="text-xl font-black" style={{color: activeCat === cat._id ? 'white' : cat.color}}>
+                         {cat.count}
+                       </span>
+                     </div>
+                   </div>
+                 </button>
+               ))}
 
-            {/* Uncategorized pill */}
-            {uncategorizedCount > 0 && (
-              <button
-                onClick={() => setActiveCat('__uncategorized__')}
-                className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all"
-                style={{
-                  background: activeCat === '__uncategorized__' ? '#6b7280' : 'rgba(107,114,128,0.1)',
-                  color: activeCat === '__uncategorized__' ? 'white' : '#9ca3af',
-                  border: '1px solid rgba(107,114,128,0.25)',
-                }}>
-                📂 Other
-                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black"
-                  style={{
-                    background: activeCat === '__uncategorized__' ? 'rgba(255,255,255,0.25)' : 'rgba(107,114,128,0.15)',
-                    color: activeCat === '__uncategorized__' ? 'white' : '#9ca3af',
-                  }}>
-                  {uncategorizedCount}
-                </span>
-              </button>
-            )}
-          </div>
-        )}
+               {/* Uncategorized card */}
+               {uncategorizedCount > 0 && (
+                 <button
+                   onClick={() => setActiveCat('__uncategorized__')}
+                   className="relative overflow-hidden rounded-2xl p-4 transition-all duration-200 group"
+                   style={{
+                     background: activeCat === '__uncategorized__' ? '#6b7280' : 'rgba(107,114,128,0.08)',
+                     border: activeCat === '__uncategorized__' ? 'none' : '1px solid rgba(107,114,128,0.25)',
+                     boxShadow: activeCat === '__uncategorized__' ? '0 8px 24px rgba(107,114,128,0.35)' : 'none',
+                     transform: activeCat === '__uncategorized__' ? 'scale(1.04)' : 'scale(1)',
+                   }}
+                   onMouseEnter={e => {
+                     if (activeCat !== '__uncategorized__') {
+                       e.currentTarget.style.transform = 'scale(1.05) translateY(-2px)';
+                       e.currentTarget.style.borderColor = '#6b7280';
+                     }
+                   }}
+                   onMouseLeave={e => {
+                     if (activeCat !== '__uncategorized__') {
+                       e.currentTarget.style.transform = 'scale(1)';
+                       e.currentTarget.style.borderColor = 'rgba(107,114,128,0.25)';
+                     }
+                   }}>
+                   <div className="flex flex-col items-center text-center gap-2">
+                     <span className="text-3xl">📂</span>
+                     <div>
+                       <p className="text-xs font-black" style={{color: activeCat === '__uncategorized__' ? 'white' : '#9ca3af'}}>
+                         Other
+                       </p>
+                       <span className="text-xl font-black" style={{color: activeCat === '__uncategorized__' ? 'white' : '#9ca3af'}}>
+                         {uncategorizedCount}
+                       </span>
+                     </div>
+                   </div>
+                 </button>
+               )}
+             </div>
+           </div>
+         )}
 
         {/* Test cards */}
         {loading || catsLoading ? (
