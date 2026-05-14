@@ -3,9 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import ThemeToggle from '../components/ThemeToggle';
 import {
-  processHindiBuffer, processInscriptBuffer,
+  processHindiBuffer,
   LANGUAGE_CATEGORIES, LAYOUT_MAPS, isPassThrough, isKrutidev,
-  getCategoryForLayout, FONTS,
+  getCategoryForLayout, FONTS, isDevanagariCharacter,
 } from '../utils/keyboardLayouts';
 import { kru2uni } from '../utils/krutidevConverter';
 import { evaluateSSC } from '../utils/hindiEvaluation';
@@ -560,7 +560,20 @@ export default function PracticePage() {
       return;
     }
 
-    /* ── Hindi buffer (inscript / cbi / gail / mangal) ── */
+    /* ── Hindi buffer (cbi / gail / mangal) ── */
+    
+    // SYSTEM KEYBOARD PASSTHROUGH: If e.key contains Devanagari characters
+    // (user has system Inscript keyboard active), skip all mapping and just add directly
+    if (e.key.length === 1 && isDevanagariCharacter(e.key)) {
+      e.preventDefault();
+      const newVal = el.value + e.key;
+      el.value = newVal;
+      el.selectionStart = el.selectionEnd = newVal.length;
+      setTypedText(newVal);
+      hindiBufRef.current = newVal; // keep in sync for consistency
+      return;
+    }
+    
     const map = LAYOUT_MAPS[layout];
     if (!map) return;
     e.preventDefault();
@@ -595,16 +608,12 @@ export default function PracticePage() {
 
     if (e.key.length === 1) {
       // Resync buffer if external tool inserted chars that bypassed it
-      const expected = layout === 'inscript'
-        ? processInscriptBuffer(hindiBufRef.current)
-        : processHindiBuffer(hindiBufRef.current, map);
+      const expected = processHindiBuffer(hindiBufRef.current, map);
       if (expected !== el.value) hindiBufRef.current = el.value;
       hindiBufRef.current += e.key;
     } else return;
 
-    const uni = layout === 'inscript'
-      ? processInscriptBuffer(hindiBufRef.current)
-      : processHindiBuffer(hindiBufRef.current, map);
+    const uni = processHindiBuffer(hindiBufRef.current, map);
     el.value = uni;
     el.selectionStart = el.selectionEnd = uni.length;
     setTypedText(uni);

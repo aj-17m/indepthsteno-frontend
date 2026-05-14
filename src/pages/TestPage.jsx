@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import CustomAudioPlayer from '../components/CustomAudioPlayer';
-import { getMappedChar, processHindiBuffer, processInscriptBuffer, LANGUAGE_CATEGORIES, KEY_ROWS, LAYOUT_MAPS, isPassThrough, isKrutidev, getCategoryForLayout } from '../utils/keyboardLayouts';
+import { getMappedChar, processHindiBuffer, LANGUAGE_CATEGORIES, KEY_ROWS, LAYOUT_MAPS, isPassThrough, isKrutidev, getCategoryForLayout, isDevanagariCharacter } from '../utils/keyboardLayouts';
 import { kru2uni } from '../utils/krutidevConverter';
 import { formatTime } from '../utils/hindiUtils';
 import ThemeToggle from '../components/ThemeToggle';
@@ -381,9 +381,22 @@ export default function TestPage() {
       return;
     }
 
-    /* ── HINDI BUFFER MODE: inscript / cbi / gail ──────────────────────────── */
+    /* ── HINDI BUFFER MODE: cbi / gail / mangal ──────────────────────────── */
     // Same buffer+convert pattern as KrutiDev. processHindiBuffer applies the
     // layout map then fixes ि reordering for Remington-based layouts (GAIL/CBI).
+    
+    // SYSTEM KEYBOARD PASSTHROUGH: If e.key contains Devanagari characters
+    // (user has system Inscript keyboard active), skip all mapping and just add directly
+    if (e.key.length === 1 && isDevanagariCharacter(e.key)) {
+      e.preventDefault();
+      const newVal = el.value + e.key;
+      el.value = newVal;
+      el.selectionStart = el.selectionEnd = newVal.length;
+      setTypedText(newVal);
+      hindiBufferRef.current = newVal; // keep in sync for consistency
+      return;
+    }
+    
     const map = LAYOUT_MAPS[layout];
     if (!map) return;
 
@@ -430,9 +443,7 @@ export default function TestPage() {
     if (e.key.length === 1) {
       // If an external tool inserted chars that bypassed our buffer, resync
       // before appending the new key — prevents double-output glitches.
-      const expectedFromBuf = layout === 'inscript'
-        ? processInscriptBuffer(hindiBufferRef.current)
-        : processHindiBuffer(hindiBufferRef.current, map);
+      const expectedFromBuf = processHindiBuffer(hindiBufferRef.current, map);
       if (expectedFromBuf !== el.value) {
         hindiBufferRef.current = el.value; // resync to actual content
       }
@@ -441,9 +452,7 @@ export default function TestPage() {
       return;
     }
 
-    const uni = layout === 'inscript'
-      ? processInscriptBuffer(hindiBufferRef.current)
-      : processHindiBuffer(hindiBufferRef.current, map);
+    const uni = processHindiBuffer(hindiBufferRef.current, map);
     el.value = uni;
     el.selectionStart = el.selectionEnd = uni.length;
     setTypedText(uni);
@@ -730,8 +739,8 @@ export default function TestPage() {
                     '🚫 Copy-paste is completely disabled',
                     '🔁 Audio can be replayed unlimited times',
                     '⏩ No forward seeking in audio',
-                    cat === 'inscript'    && '⌨️ Inscript layout active — Unicode Devanagari output (no OS install needed)',
-                    cat === 'inscript'    && '📝 All output is Unicode Devanagari — compatible with any Hindi font',
+                    cat === 'inscript'    && '⌨️ Inscript passthrough active — type what you hear directly',
+                    cat === 'inscript'    && '📝 System keyboard input flows directly — no mapping applied',
                     cat === 'mangal'      && '⌨️ Mangal layout active — Unicode Devanagari output (no OS install needed)',
                     cat === 'mangal'      && '📝 All output is Unicode Devanagari — compatible with any Hindi font',
                     layout === 'krutidev' && '🔄 KrutiDev keys auto-convert to Unicode — evaluation works correctly',
@@ -777,12 +786,12 @@ export default function TestPage() {
               <div className="flex items-center gap-4 px-5 pt-5 pb-4"
                 style={{borderBottom:'1px solid rgba(255,255,255,0.07)'}}>
                 <div className="relative shrink-0">
-                  <div className="text-4xl animate-float-slow">🎧</div>
-                  <div className="absolute inset-0 blur-lg opacity-40 text-4xl pointer-events-none">🎧</div>
+                  <div className="text-4xl animate-float-slow">{test.audioPath ? '🎧' : '⏭️'}</div>
+                  <div className="absolute inset-0 blur-lg opacity-40 text-4xl pointer-events-none">{test.audioPath ? '🎧' : '⏭️'}</div>
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-bold mb-0.5 uppercase tracking-widest"
-                    style={{color:'rgba(165,180,252,0.6)'}}>Now Playing</p>
+                    style={{color:'rgba(165,180,252,0.6)'}}>{test.audioPath ? 'Now Playing' : 'Audio Status'}</p>
                   <h2 className="font-black text-lg leading-tight text-white truncate">{test.title}</h2>
                   {test.category && (
                     <div className="flex items-center gap-1.5 mt-1">
@@ -847,25 +856,54 @@ export default function TestPage() {
                 style={{background:'rgba(0,0,0,0.15)'}}>
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" style={{animationDuration:'1.2s'}}/>
                 <p className="text-xs" style={{color:'rgba(255,255,255,0.40)'}}>
-                  Listen as many times as needed, then click Start Typing below
+                  {test.audioPath ? 'Listen as many times as needed, then click Start Typing below' : 'Audio not uploaded by admin yet'}
                 </p>
               </div>
             </div>
 
-            <CustomAudioPlayer
-              src={resolveAudioUrl(test.audioPath)}
-            />
+            {test.audioPath ? (
+              <>
+                <CustomAudioPlayer
+                  src={resolveAudioUrl(test.audioPath)}
+                />
 
-            <button onClick={handleAudioEnded}
-              className="w-full py-3 rounded-2xl text-sm font-black text-white transition-all active:scale-95 relative overflow-hidden"
-              style={{
-                background:'linear-gradient(135deg,#059669,#10b981)',
-                boxShadow:'0 0 20px rgba(16,185,129,0.35), 0 4px 12px rgba(0,0,0,0.3)',
-              }}>
-              <div className="absolute inset-0 pointer-events-none"
-                style={{background:'linear-gradient(135deg,rgba(255,255,255,0.15) 0%,transparent 60%)'}}/>
-              <span className="relative z-10">Done Listening — Start Typing →</span>
-            </button>
+                <button onClick={handleAudioEnded}
+                  className="w-full py-3 rounded-2xl text-sm font-black text-white transition-all active:scale-95 relative overflow-hidden"
+                  style={{
+                    background:'linear-gradient(135deg,#059669,#10b981)',
+                    boxShadow:'0 0 20px rgba(16,185,129,0.35), 0 4px 12px rgba(0,0,0,0.3)',
+                  }}>
+                  <div className="absolute inset-0 pointer-events-none"
+                    style={{background:'linear-gradient(135deg,rgba(255,255,255,0.15) 0%,transparent 60%)'}}/>
+                  <span className="relative z-10">Done Listening — Start Typing →</span>
+                </button>
+              </>
+            ) : (
+              <div className="rounded-2xl p-6 text-center"
+                style={{
+                  background:'linear-gradient(135deg,rgba(99,102,241,0.15),rgba(124,58,237,0.10))',
+                  border:'1px solid rgba(99,102,241,0.25)',
+                }}>
+                <div className="text-5xl mb-3">⏰</div>
+                <p className="text-lg font-black text-white mb-2">Audio Coming Soon</p>
+                <p className="text-sm mb-4" style={{color:'rgba(255,255,255,0.60)'}}>
+                  Audio will be available soon. Check back later for updates.
+                </p>
+                <p className="text-xs" style={{color:'rgba(255,255,255,0.45)'}}>
+                  You can proceed with typing practice now and practice with audio when it's available.
+                </p>
+                <button onClick={handleAudioEnded}
+                  className="w-full mt-5 py-3 rounded-2xl text-sm font-black text-white transition-all active:scale-95 relative overflow-hidden"
+                  style={{
+                    background:'linear-gradient(135deg,#059669,#10b981)',
+                    boxShadow:'0 0 20px rgba(16,185,129,0.35), 0 4px 12px rgba(0,0,0,0.3)',
+                  }}>
+                  <div className="absolute inset-0 pointer-events-none"
+                    style={{background:'linear-gradient(135deg,rgba(255,255,255,0.15) 0%,transparent 60%)'}}/>
+                  <span className="relative z-10">Proceed to Typing →</span>
+                </button>
+              </div>
+            )}
           </div>
         )}
 

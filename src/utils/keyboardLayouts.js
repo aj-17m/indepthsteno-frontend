@@ -1,14 +1,14 @@
 /**
  * Keyboard layout mappings — QWERTY (US) → target language
  *
- * Every layout except English intercepts raw KeyboardEvents and inserts
+ * Every layout except English and Inscript intercepts raw KeyboardEvents and inserts
  * the correct Unicode character directly. No OS keyboard layout install needed.
  *
  * Language Categories
  * ───────────────────
  *  English               – pass-through, browser handles everything
+ *  Inscript             – system keyboard passthrough (install Hindi Inscript locally)
  *  Hindi (Unicode/Mangal)
- *    inscript – BIS IS 15988 standard Devanagari layout
  *    cbi      – Central Bureau of Investigation variant
  *    gail     – Remington Gail (standard SSC / UPSC steno)
  *  Kruti Dev
@@ -52,93 +52,10 @@ const CBI = {
 };
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   INSCRIPT  (context-sensitive — same key can produce consonant, matra, or
-   independent vowel depending on what was typed before it)
-───────────────────────────────────────────────────────────────────────────── */
-
-/** Number row — Devanagari numerals */
-export const INSCRIPT_NUMERALS = {
-  '1':'१', '2':'२', '3':'३', '4':'४', '5':'५',
-  '6':'६', '7':'७', '8':'८', '9':'९', '0':'०',
-};
-
-/** Shifted number row — pass-through ASCII symbols */
-export const INSCRIPT_NUMERALS_SHIFT = {
-  '!':'!', '@':'@', '#':'#', '$':'$', '%':'%',
-  '^':'^', '&':'&', '*':'*', '(':'(', ')':')',
-};
-
-/** Unshifted consonants */
-export const INSCRIPT_BASE = {
-  k:'क', g:'ग', c:'च', j:'ज', t:'ट', d:'ड', n:'ण',
-  p:'प', b:'ब', m:'म', y:'य', r:'र', l:'ल', v:'व', s:'स', h:'ह',
-};
-
-/** Shifted consonants */
-export const INSCRIPT_SHIFT = {
-  K:'ख', G:'घ', C:'छ', J:'झ', T:'ठ', D:'ढ', N:'ण',
-  P:'फ', B:'भ', S:'श', z:'ष',
-};
-
-/**
- * Dependent vowel signs (matras) — only valid after a consonant.
- * Note: 'k' here (ा) shadows INSCRIPT_BASE.k (क) in post-consonant context.
- *       'h' is NOT here — post-consonant 'h' goes to INSCRIPT_SPECIAL (halant).
- *       'e','o','O' shadow INSCRIPT_VOWELS in post-consonant context.
- */
-export const INSCRIPT_MATRA = {
-  f:'ि',  F:'ी',
-  q:'ु',  Q:'ू',
-  e:'े',  w:'ै',
-  o:'ो',  O:'ौ',
-  '`':'ृ',
-  k:'ा',           // same key as क — resolved by context
-};
-
-/** Independent vowels — used when NOT directly after a consonant */
-export const INSCRIPT_VOWELS = {
-  a:'अ', A:'आ',
-  i:'इ', I:'ई',
-  u:'उ', U:'ऊ',
-  e:'ए', E:'ऐ',   // same keys as matras े/ै — resolved by context
-  o:'ओ', O:'औ',   // same keys as matras ो/ौ — resolved by context
-};
-
-/**
- * Special combining marks.
- * 'h' (halant ्) shadows INSCRIPT_BASE.h (ह) in post-consonant context.
- */
-export const INSCRIPT_SPECIAL = {
-  h:'्',   // halant/virama — post-consonant 'h'; standalone 'h' → ह via BASE
-  M:'ं',   // anusvara
-  H:'ः',   // visarga
-  '~':'ँ', // chandrabindu
-};
-
-/**
- * Flat display map for the reference card.
- * Shows primary/standalone meaning per key; context-sensitive keys
- * (k, h, e, o, O) show their consonant/vowel form here.
- */
-const INSCRIPT_DISPLAY = {
-  ...INSCRIPT_NUMERALS,      // numeric keys (1-0)
-  ...INSCRIPT_NUMERALS_SHIFT, // shifted numeric keys (!@#$%^&*())
-  ...INSCRIPT_MATRA,    // matra keys as base
-  ...INSCRIPT_BASE,     // consonants override (k=क over k=ा, h=ह)
-  ...INSCRIPT_SHIFT,
-  ...INSCRIPT_VOWELS,   // independent vowels (e=ए over e=े, o=ओ over o=ो, O=औ)
-  // Specials that don't collide with consonants
-  M: INSCRIPT_SPECIAL.M,    // ं
-  H: INSCRIPT_SPECIAL.H,    // ः
-  '~': INSCRIPT_SPECIAL['~'],
-  ' ':' ', ',':',', '.':'.',
-};
-
-/* ─────────────────────────────────────────────────────────────────────────────
-   MANGAL  (Hindi legacy font keyboard layout — direct Unicode output)
-   Mangal is a standard Hindi font. This layout provides direct key-mapping
-   from English QWERTY to Devanagari Unicode (works with any Devanagari font).
-───────────────────────────────────────────────────────────────────────────── */
+    MANGAL  (Hindi legacy font keyboard layout — direct Unicode output)
+    Mangal is a standard Hindi font. This layout provides direct key-mapping
+    from English QWERTY to Devanagari Unicode (works with any Devanagari font).
+ ───────────────────────────────────────────────────────────────────────────── */
 const MANGAL = {
   // ── Normal ──────────────────────────────────────────────────────────────────
   '`':'ँ',
@@ -163,12 +80,9 @@ const MANGAL = {
 
 /* ─────────────────────────────────────────────────────────────────────────────
    LAYOUT MAPS
-   inscript uses INSCRIPT_DISPLAY (flat, for reference card only — actual typing
-   goes through processInscriptBuffer which is context-sensitive).
    KrutiDev is NOT here — it uses kru2uni conversion.
 ───────────────────────────────────────────────────────────────────────────── */
 export const LAYOUT_MAPS = {
-  inscript : INSCRIPT_DISPLAY,
   cbi      : CBI,
   gail     : GAIL,
   mangal   : MANGAL,
@@ -182,7 +96,7 @@ export const LANGUAGE_CATEGORIES = [
     value   : 'inscript',
     label   : 'Inscript',
     icon    : '⌨️',
-    desc    : 'BIS IS 15988 Devanagari layout — no OS extension needed',
+    desc    : 'System Hindi Inscript keyboard — direct passthrough (install keyboard locally)',
     layouts : null,
   },
   {
@@ -207,7 +121,7 @@ export const LANGUAGE_CATEGORIES = [
 
 /** Returns true if the layout is pure pass-through (no interception). */
 export function isPassThrough(layout) {
-  return layout === 'english';
+  return layout === 'english' || layout === 'inscript';
 }
 
 /**
@@ -229,7 +143,7 @@ export function getCategoryForLayout(layout) {
  * Resolve a raw keyboard key to the mapped character for the given layout.
  * Returns null for pass-through layouts or unrecognised keys (let browser handle).
  *
- * @param {string} layout  – 'inscript' | 'cbi' | 'gail' | 'krutidev' | 'english'
+ * @param {string} layout  – 'inscript' | 'cbi' | 'gail' | 'mangal' | 'krutidev' | 'english'
  * @param {string} key     – e.key value from KeyboardEvent
  */
 export function getMappedChar(layout, key) {
@@ -246,8 +160,7 @@ export function getMappedChar(layout, key) {
  * Each key is looked up in layoutMap. After conversion, ि (U+093F) that
  * appears immediately before a Devanagari consonant is moved after it —
  * this corrects Remington-based typing (GAIL/CBI) where ि is typed before
- * its consonant. For INSCRIPT users who type consonant-then-matra the
- * pattern never matches, so this is a transparent no-op.
+ * its consonant.
  *
  * @param {string} rawBuffer  – accumulated raw keystroke characters
  * @param {Object} layoutMap  – key→character map from LAYOUT_MAPS
@@ -264,87 +177,23 @@ export function processHindiBuffer(rawBuffer, layoutMap) {
   return result.replace(/\u093F([\u0915-\u0939\u0958-\u095F\u0978-\u097F])/g, '$1\u093F');
 }
 
-/**
- * Returns true if the Unicode codepoint is a Devanagari consonant.
- * Covers ka-ha (U+0915–U+0939) and nukta variants (U+0958–U+095F).
- */
-function isDevanagariConsonant(ch) {
-  if (!ch) return false;
-  const cp = ch.codePointAt(0);
-  return (cp >= 0x0915 && cp <= 0x0939) || (cp >= 0x0958 && cp <= 0x095F);
-}
-
-/**
- * Convert a raw keystroke buffer to Unicode for the INSCRIPT layout.
- *
- * Resolution priority per key, based on the last output character:
- *
- *   After halant (्)    → consonant priority  (conjunct formation)
- *                          SHIFT > BASE > MATRA > SPECIAL > VOWEL
- *
- *   After consonant     → matra/special priority
- *                          MATRA > SPECIAL > BASE > SHIFT > VOWEL
- *                          (e.g. 'k' → ा, 'h' → ्, 'e' → े)
- *
- *   Otherwise           → independent vowel / new consonant
- *                          VOWEL > BASE > SHIFT > SPECIAL > MATRA
- *                          (e.g. 'k' → क, 'h' → ह, 'e' → ए)
- */
-export function processInscriptBuffer(rawBuffer) {
-  let result = '';
-
-  for (const key of rawBuffer) {
-    if (key === '\n' || key === ' ') { result += key; continue; }
-
-    // Numeric keys (1-0, !@#$%^&*()) are not context-sensitive
-    let ch = INSCRIPT_NUMERALS[key]
-      ?? INSCRIPT_NUMERALS_SHIFT[key];
-    
-    if (ch) {
-      result += ch;
-      continue;
-    }
-
-    const chars    = [...result];
-    const lastChar = chars[chars.length - 1] ?? '';
-    const afterHalant    = lastChar === '\u094D';
-    const afterConsonant = !afterHalant && isDevanagariConsonant(lastChar);
-
-    if (afterHalant) {
-      ch = INSCRIPT_SHIFT[key]
-        ?? INSCRIPT_BASE[key]
-        ?? INSCRIPT_MATRA[key]
-        ?? INSCRIPT_SPECIAL[key]
-        ?? INSCRIPT_VOWELS[key]
-        ?? null;
-    } else if (afterConsonant) {
-      ch = INSCRIPT_MATRA[key]
-        ?? INSCRIPT_SPECIAL[key]
-        ?? INSCRIPT_BASE[key]
-        ?? INSCRIPT_SHIFT[key]
-        ?? INSCRIPT_VOWELS[key]
-        ?? null;
-    } else {
-      ch = INSCRIPT_VOWELS[key]
-        ?? INSCRIPT_BASE[key]
-        ?? INSCRIPT_SHIFT[key]
-        ?? INSCRIPT_SPECIAL[key]
-        ?? INSCRIPT_MATRA[key]
-        ?? null;
-    }
-
-    result += ch !== null ? ch : key;
-  }
-
-  return result;
-}
-
 /** Keys to show in the on-screen reference card (three rows). */
 export const KEY_ROWS = [
   ['q','w','e','r','t','y','u','i','o','p'],
   ['a','s','d','f','g','h','j','k','l',';'],
   ['z','x','c','v','b','n','m',',','.','/'],
 ];
+
+/**
+ * Detect if a character is Devanagari (from system keyboard input).
+ * Returns true if the character is in the Devanagari Unicode block.
+ */
+export function isDevanagariCharacter(char) {
+  if (!char) return false;
+  const cp = char.codePointAt(0);
+  return (cp >= 0x0900 && cp <= 0x097F) ||   // Devanagari block
+         (cp >= 0xA8E0 && cp <= 0xA8FF);     // Devanagari Extended block
+}
 
 /** All selectable display fonts. */
 export const FONTS = [

@@ -769,11 +769,12 @@ export default function AdminDashboard() {
   const [extendResetDevice, setExtendResetDevice] = useState(false);
   const [extendMsg,         setExtendMsg]         = useState(null);
 
-  const [assignUserId,    setAssignUserId]    = useState('');
-  const [assignSelected,  setAssignSelected]  = useState(new Set());
-  const [assignSearch,    setAssignSearch]    = useState('');
-  const [assignMsg,       setAssignMsg]       = useState(null);
-  const [assignLoading,   setAssignLoading]   = useState(false);
+  const [assignUserId,       setAssignUserId]       = useState('');
+  const [assignSelected,     setAssignSelected]     = useState(new Set());
+  const [assignSearch,       setAssignSearch]       = useState('');
+  const [assignCategoryFilter, setAssignCategoryFilter] = useState(''); // '' = all, or category._id
+  const [assignMsg,          setAssignMsg]          = useState(null);
+  const [assignLoading,      setAssignLoading]      = useState(false);
 
   const [catForm,    setCatForm]    = useState({ name:'', description:'', icon:'📋', color:'#4f46e5', instructions:'' });
   const [catMsg,     setCatMsg]     = useState(null);
@@ -1640,7 +1641,10 @@ export default function AdminDashboard() {
         {/* ═══ ASSIGNMENTS ════════════════════════════════════ */}
         {tab === 'Assignments' && (() => {
           const filteredTests = tests.filter(t =>
-            t.title.toLowerCase().includes(assignSearch.toLowerCase())
+            t.title.toLowerCase().includes(assignSearch.toLowerCase()) &&
+            (assignCategoryFilter === '' || 
+             (assignCategoryFilter === '__uncategorized__' && !t.category) ||
+             (assignCategoryFilter !== '__uncategorized__' && t.category?._id === assignCategoryFilter))
           );
           const allFiltered   = filteredTests.map(t => t._id);
           const allChecked    = allFiltered.length > 0 && allFiltered.every(id => assignSelected.has(id));
@@ -1680,7 +1684,19 @@ export default function AdminDashboard() {
                     ))}
                   </ThemedSelect>
 
-                  {/* Search + select-all header */}
+                  {/* Category filter */}
+                  <ThemedSelect value={assignCategoryFilter}
+                    onChange={e => { setAssignCategoryFilter(e.target.value); setAssignMsg(null); }}>
+                    <option value="">All Categories and Tests</option>
+                    <option value="__uncategorized__">Uncategorized Tests</option>
+                    {categories.map(c => (
+                      <option key={c._id} value={c._id}>
+                        {c.icon} {c.name}
+                      </option>
+                    ))}
+                  </ThemedSelect>
+
+
                   <div className="flex items-center gap-2">
                     <div className="relative flex-1">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm" style={{ color:'var(--text-3)' }}>🔍</span>
