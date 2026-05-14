@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
@@ -583,14 +583,22 @@ function CreateTestForm({ tests, users, onCreated, categories }) {
           />
         </div>
 
-        {/* TTS info box */}
-        {!audioFile && (
+        {/* Info box */}
+        {!audioFile ? (
           <div className="rounded-xl p-3 text-xs flex items-start gap-2"
             style={{ background:'var(--tip-bg)', border:'1px solid var(--tip-border)', color:'var(--tip-text)' }}>
             <span className="text-base">🎵</span>
             <span>
-              If you do not upload audio, the test will be created without audio.
-              You can attach or replace audio later from the test list.
+              No audio will be created for this test. Users will see "Audio will be uploaded soon" message.
+              You can upload audio later from the test list and enable it for users.
+            </span>
+          </div>
+        ) : (
+          <div className="rounded-xl p-3 text-xs flex items-start gap-2"
+            style={{ background:'rgba(16,185,129,0.12)', border:'1px solid rgba(16,185,129,0.25)', color:'#34d399' }}>
+            <span className="text-base">✅</span>
+            <span>
+              Audio file selected. It will be uploaded and automatically enabled for this test.
             </span>
           </div>
         )}
@@ -782,6 +790,9 @@ export default function AdminDashboard() {
 
   const [audioReplaceFor, setAudioReplaceFor] = useState(null);
 
+  // ── Category-based test display state ──────────────────────────────────────
+  const [expandedCategories, setExpandedCategories] = useState(new Set(['all'])); // Track which categories are expanded
+
   // ── Edit test modal state ───────────────────────────────────────────────────
   const [editTestModal,   setEditTestModal]   = useState(null);   // null | test object (with extractedText)
   const [editTestForm,    setEditTestForm]    = useState({});
@@ -825,19 +836,125 @@ export default function AdminDashboard() {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
+  // Group assignments by user for better organization (memoized for performance)
+  const assignmentsByUser = useMemo(() => {
+    return assignments.reduce((acc, assignment) => {
+      const userId = assignment.userId?._id;
+      if (!userId) return acc;
+      
+      if (!acc[userId]) {
+        acc[userId] = {
+          user: assignment.userId,
+          assignments: []
+        };
+      }
+      acc[userId].assignments.push(assignment);
+      return acc;
+    }, {});
+  }, [assignments]);
+
+  const toggleCategoryExpansion = (categoryId) => {
+    setExpandedCategories(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(categoryId)) {
+        newSet.delete(categoryId);
+      } else {
+        newSet.add(categoryId);
+      }
+      return newSet;
+    });
+  };
+
+  // Group tests by category for organized display
+  const groupedTests = useMemo(() => {
+    const groups = {};
+    
+    // Initialize with existing categories
+    categories.forEach(cat => {
+      groups[cat._id] = {
+        category: cat,
+        tests: []
+      };
+    });
+    
+    // Add "Other" category for uncategorized tests
+    groups['uncategorized'] = {
+      category: { _id: 'uncategorized', name: 'Other', icon: '📂', color: '#6b7280' },
+      tests: []
+    };
+    
+    // Distribute tests into categories
+    tests.forEach(test => {
+      if (test.category && groups[test.category._id]) {
+        groups[test.category._id].tests.push(test);
+      } else {
+        groups['uncategorized'].tests.push(test);
+      }
+    });
+    
+    // Remove empty categories (except "Other" which we always show if there are uncategorized tests)
+    Object.keys(groups).forEach(key => {
+      if (key !== 'uncategorized' && groups[key].tests.length === 0) {
+        delete groups[key];
+      }
+    });
+    
+    // Remove "Other" if no uncategorized tests
+    if (groups['uncategorized'].tests.length === 0) {
+      delete groups['uncategorized'];
+    }
+    
+    return groups;
+  }, [tests, categories]);
+
   const toggleActive = async (id, cur) => {
-    await api.patch(`/admin/tests/${id}/status`, { isActive: !cur });
-    fetchAll();
+    try {
+      await api.patch(`/admin/tests/${id}/status`, { isActive: !cur });
+      fetchAll();
+    } catch (err) {
+      console.error('Error toggling active status:', err);
+      alert('Failed to toggle active status. Please try again.');
+    }
   };
 
   const togglePractice = async (id, cur) => {
-    await api.put(`/admin/tests/${id}`, { practiceEnabled: !cur });
-    fetchAll();
+    try {
+      await api.put(`/admin/tests/${id}`, { practiceEnabled: !cur });
+      fetchAll();
+    } catch (err) {
+      console.error('Error toggling practice:', err);
+      alert('Failed to toggle practice mode. Please try again.');
+    }
   };
 
   const toggleAudio = async (id, cur) => {
-    await api.put(`/admin/tests/${id}`, { audioEnabled: !cur });
-    fetchAll();
+    try {
+      // Handle undefined by treating as false (audio disabled by default)
+      const currentValue = cur === undefined ? false : cur;
+      const newValue = !currentValue;
+      
+      console.log('🎵 toggleAudio called with:', { id, currentValue, newValue });
+      console.log('📤 Sending PATCH request to:', `/admin/tests/${id}/audio-toggle`);
+      
+      const response = await api.patch(`/admin/tests/${id}/audio-toggle`, { audioEnabled: newValue });
+      console.log('✅ Success! Response:', response.data);
+      console.log('✅ New audioEnabled value set to:', newValue);
+      
+      fetchAll();
+      console.log('🔄 fetchAll() called to refresh data');
+    } catch (err) {
+      console.error('❌ Error toggling audio:', err);
+      console.error('Error details:', {
+        message: err.message,
+        status: err.response?.status,
+        data: err.response?.data,
+        url: err.config?.url
+      });
+      
+      // Show user-friendly error message
+      const errorMsg = err.response?.data?.message || err.message;
+      alert('Failed to toggle audio.\n\n' + errorMsg);
+    }
   };
 
   const deleteTest = async (id) => {
@@ -1130,94 +1247,179 @@ export default function AdminDashboard() {
             {/* Right: tests list */}
             <div className="space-y-4">
               <div style={cardStyle}>
-                <h2 className="text-lg mb-4" style={{ color:'var(--text-1)', fontWeight:800 }}>All Tests ({tests.length})</h2>
+                <h2 className="text-lg mb-4" style={{ color:'var(--text-1)', fontWeight:800 }}>Tests by Category ({tests.length} total)</h2>
                 {tests.length === 0 ? (
                   <div className="text-center py-8">
                     <div className="text-4xl mb-2">📋</div>
                     <p style={{ color:'var(--text-3)' }}>No tests yet. Create one!</p>
                   </div>
                 ) : (
-                  <div className="space-y-3">
-                    {tests.map(t => (
-                      <div key={t._id} className="rounded-xl p-4 transition"
-                        style={{ border:'1px solid var(--border)' }}
-                        onMouseEnter={e => e.currentTarget.style.borderColor='var(--border-hi)'}
-                        onMouseLeave={e => e.currentTarget.style.borderColor='var(--border)'}>
-                        <div className="flex items-start justify-between gap-2 mb-2">
-                          <div className="min-w-0 flex-1">
-                            <p className="font-bold truncate" style={{ color:'var(--text-1)' }}>{t.title}</p>
-                            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                              <span className="text-xs px-2 py-0.5 rounded-full font-semibold"
-                                style={t.isActive
-                                  ? { background:'rgba(16,185,129,0.15)', color:'#34d399' }
-                                  : { background:'var(--bg-surface)', color:'var(--text-3)', border:'1px solid var(--border)' }}>
-                                {t.isActive ? '● Active' : '○ Inactive'}
-                              </span>
-                              <span className="text-xs px-2 py-0.5 rounded-full font-semibold"
-                                style={t.practiceEnabled
-                                  ? { background:'rgba(6,182,212,0.15)', color:'#22d3ee' }
-                                  : { background:'var(--bg-surface)', color:'var(--text-3)', border:'1px solid var(--border)' }}>
-                                {t.practiceEnabled ? '✏️ Practice On' : '✏️ Practice Off'}
-                              </span>
-                              <span className="text-xs px-2 py-0.5 rounded-full font-semibold"
-                                style={t.audioEnabled
-                                  ? { background:'rgba(16,185,129,0.15)', color:'#34d399' }
-                                  : { background:'rgba(239,68,68,0.12)', color:'#f87171' }}>
-                                {t.audioEnabled ? '🎵 Audio On' : '🎵 Audio Off'}
-                              </span>
-                              <span className="text-xs" style={{ color:'var(--text-3)' }}>⏱ {t.timer ?? 30} min</span>
-                              <span className="text-xs" style={{ color:'var(--text-3)' }}>
-                                🗓 {t.createdAt ? new Date(t.createdAt).toLocaleString('en-IN') : 'Created time unavailable'}
-                              </span>
-                              {t.category && <span className="text-xs" style={{ color:'var(--text-3)' }}>{t.category.icon} {t.category.name}</span>}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex flex-wrap gap-1.5">
-                          <button onClick={() => toggleActive(t._id, t.isActive)}
-                            className="text-xs px-2.5 py-1.5 rounded-lg font-semibold transition hover:opacity-80"
-                            style={t.isActive
-                              ? { background:'rgba(245,158,11,0.12)', color:'#fbbf24', border:'1px solid rgba(245,158,11,0.20)' }
-                              : { background:'rgba(16,185,129,0.12)',  color:'#34d399',  border:'1px solid rgba(16,185,129,0.22)' }}>
-                            {t.isActive ? 'Deactivate' : 'Activate'}
-                          </button>
-                          <button onClick={() => togglePractice(t._id, t.practiceEnabled)}
-                            className="text-xs px-2.5 py-1.5 rounded-lg font-semibold transition hover:opacity-80"
-                            style={t.practiceEnabled
-                              ? { background:'rgba(6,182,212,0.15)', color:'#22d3ee', border:'1px solid rgba(6,182,212,0.25)' }
-                              : { background:'var(--bg-surface)', color:'var(--text-3)', border:'1px solid var(--border)' }}>
-                            {t.practiceEnabled ? '✏️ Practice On' : '✏️ Practice Off'}
-                          </button>
-                          <button onClick={() => toggleAudio(t._id, t.audioEnabled)}
-                            className="text-xs px-2.5 py-1.5 rounded-lg font-semibold transition hover:opacity-80"
-                            style={t.audioEnabled
-                              ? { background:'rgba(16,185,129,0.12)', color:'#34d399', border:'1px solid rgba(16,185,129,0.22)' }
-                              : { background:'rgba(239,68,68,0.12)', color:'#f87171', border:'1px solid rgba(239,68,68,0.22)' }}>
-                            {t.audioEnabled ? '🎵 Audio On' : '🎵 Audio Off'}
-                          </button>
-                          <button onClick={() => openEditTest(t._id)}
-                            className="text-xs px-2.5 py-1.5 rounded-lg font-semibold transition hover:opacity-80"
-                            style={{ background:'rgba(16,185,129,0.12)', color:'#34d399', border:'1px solid rgba(16,185,129,0.22)' }}>
-                            ✏️ Edit
-                          </button>
-                          <button onClick={() => setAudioReplaceFor(t._id)}
-                            className="text-xs px-2.5 py-1.5 rounded-lg font-semibold transition hover:opacity-80"
-                            style={{ background:'rgba(99,102,241,0.12)', color:'#818cf8', border:'1px solid rgba(99,102,241,0.20)' }}>
-                            Replace Audio
-                          </button>
-                          <button onClick={() => loadLeaderboard(t._id)}
-                            className="text-xs px-2.5 py-1.5 rounded-lg font-semibold transition hover:opacity-80"
-                            style={{ background:'rgba(245,158,11,0.10)', color:'#fbbf24', border:'1px solid rgba(245,158,11,0.18)' }}>
-                            Leaderboard
-                          </button>
-                          <button onClick={() => deleteTest(t._id)}
-                            className="text-xs px-2.5 py-1.5 rounded-lg font-semibold transition hover:opacity-80"
-                            style={{ background:'rgba(239,68,68,0.12)', color:'#f87171', border:'1px solid rgba(239,68,68,0.22)' }}>
-                            Delete
-                          </button>
-                        </div>
+                  <div className="space-y-4">
+                    {/* Summary stats */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+                      <div className="text-center p-3 rounded-xl" style={{ background:'var(--bg-surface)', border:'1px solid var(--border)' }}>
+                        <div className="text-2xl font-black" style={{ color:'var(--text-1)' }}>{tests.length}</div>
+                        <div className="text-xs font-semibold" style={{ color:'var(--text-3)' }}>Total Tests</div>
                       </div>
-                    ))}
+                      <div className="text-center p-3 rounded-xl" style={{ background:'var(--bg-surface)', border:'1px solid var(--border)' }}>
+                        <div className="text-2xl font-black" style={{ color:'#34d399' }}>{tests.filter(t => t.isActive).length}</div>
+                        <div className="text-xs font-semibold" style={{ color:'var(--text-3)' }}>Active</div>
+                      </div>
+                      <div className="text-center p-3 rounded-xl" style={{ background:'var(--bg-surface)', border:'1px solid var(--border)' }}>
+                        <div className="text-2xl font-black" style={{ color:'#22d3ee' }}>{tests.filter(t => t.practiceEnabled).length}</div>
+                        <div className="text-xs font-semibold" style={{ color:'var(--text-3)' }}>Practice</div>
+                      </div>
+                      <div className="text-center p-3 rounded-xl" style={{ background:'var(--bg-surface)', border:'1px solid var(--border)' }}>
+                        <div className="text-2xl font-black" style={{ color:'#fbbf24' }}>{Object.keys(groupedTests).length}</div>
+                        <div className="text-xs font-semibold" style={{ color:'var(--text-3)' }}>Categories</div>
+                      </div>
+                    </div>
+
+                    {/* Category-based test display */}
+                    {Object.entries(groupedTests).map(([categoryId, group]) => {
+                      const isExpanded = expandedCategories.has(categoryId);
+                      const { category, tests: categoryTests } = group;
+                      
+                      return (
+                        <div key={categoryId} className="rounded-2xl overflow-hidden" 
+                          style={{ background:'var(--bg-surface)', border:'1px solid var(--border)' }}>
+                          
+                          {/* Category header */}
+                          <button
+                            onClick={() => toggleCategoryExpansion(categoryId)}
+                            className="w-full flex items-center justify-between p-4 transition-all hover:opacity-80"
+                            style={{ background:'var(--bg-card)', borderBottom: isExpanded ? '1px solid var(--border)' : 'none' }}>
+                            
+                            <div className="flex items-center gap-3">
+                              <span className="text-2xl">{category.icon}</span>
+                              <div className="text-left">
+                                <h3 className="font-black text-lg" style={{ color:'var(--text-1)' }}>
+                                  {category.name}
+                                </h3>
+                                <p className="text-xs" style={{ color:'var(--text-3)' }}>
+                                  {categoryTests.length} test{categoryTests.length !== 1 ? 's' : ''}
+                                </p>
+                              </div>
+                            </div>
+                            
+                            <div className="flex items-center gap-3">
+                              {/* Quick stats for this category */}
+                              <div className="hidden sm:flex items-center gap-2">
+                                <span className="text-xs px-2 py-1 rounded-full font-semibold"
+                                  style={{ background:'rgba(16,185,129,0.12)', color:'#34d399' }}>
+                                  {categoryTests.filter(t => t.isActive).length} active
+                                </span>
+                                <span className="text-xs px-2 py-1 rounded-full font-semibold"
+                                  style={{ background:'rgba(6,182,212,0.12)', color:'#22d3ee' }}>
+                                  {categoryTests.filter(t => t.practiceEnabled).length} practice
+                                </span>
+                              </div>
+                              
+                              {/* Expand/collapse icon */}
+                              <div className="text-lg transition-transform duration-200"
+                                style={{ 
+                                  transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                                  color: 'var(--text-3)'
+                                }}>
+                                ▼
+                              </div>
+                            </div>
+                          </button>
+                          
+                          {/* Category tests */}
+                          {isExpanded && (
+                            <div className="p-4 space-y-3">
+                              {categoryTests.map(t => (
+                                <div key={t._id} className="rounded-xl p-4 transition"
+                                  style={{ background:'var(--bg-card)', border:'1px solid var(--border)' }}
+                                  onMouseEnter={e => e.currentTarget.style.borderColor='var(--border-hi)'}
+                                  onMouseLeave={e => e.currentTarget.style.borderColor='var(--border)'}>
+                                  
+                                  <div className="flex items-start justify-between gap-2 mb-2">
+                                    <div className="min-w-0 flex-1">
+                                      <p className="font-bold truncate" style={{ color:'var(--text-1)' }}>{t.title}</p>
+                                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                                        <span className="text-xs px-2 py-0.5 rounded-full font-semibold"
+                                          style={t.isActive
+                                            ? { background:'rgba(16,185,129,0.15)', color:'#34d399' }
+                                            : { background:'var(--bg-surface)', color:'var(--text-3)', border:'1px solid var(--border)' }}>
+                                          {t.isActive ? '● Active' : '○ Inactive'}
+                                        </span>
+                                        <span className="text-xs px-2 py-0.5 rounded-full font-semibold"
+                                          style={t.practiceEnabled
+                                            ? { background:'rgba(6,182,212,0.15)', color:'#22d3ee' }
+                                            : { background:'var(--bg-surface)', color:'var(--text-3)', border:'1px solid var(--border)' }}>
+                                          {t.practiceEnabled ? '✏️ Practice On' : '✏️ Practice Off'}
+                                        </span>
+                                        <span className="text-xs px-2 py-0.5 rounded-full font-semibold"
+                                          style={t.audioEnabled
+                                            ? { background:'rgba(16,185,129,0.15)', color:'#34d399' }
+                                            : { background:'rgba(239,68,68,0.12)', color:'#f87171' }}>
+                                          {t.audioEnabled ? '🎵 Audio On' : '🎵 Audio Off'}
+                                        </span>
+                                        <span className="text-xs" style={{ color:'var(--text-3)' }}>⏱ {t.timer ?? 30} min</span>
+                                        <span className="text-xs" style={{ color:'var(--text-3)' }}>
+                                          🗓 {t.createdAt ? new Date(t.createdAt).toLocaleString('en-IN') : 'Created time unavailable'}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  
+                                  <div className="flex flex-wrap gap-1.5">
+                                    <button onClick={() => toggleActive(t._id, t.isActive)}
+                                      className="text-xs px-2.5 py-1.5 rounded-lg font-semibold transition hover:opacity-80"
+                                      style={t.isActive
+                                        ? { background:'rgba(245,158,11,0.12)', color:'#fbbf24', border:'1px solid rgba(245,158,11,0.20)' }
+                                        : { background:'rgba(16,185,129,0.12)',  color:'#34d399',  border:'1px solid rgba(16,185,129,0.22)' }}>
+                                      {t.isActive ? 'Deactivate' : 'Activate'}
+                                    </button>
+                                    <button onClick={() => togglePractice(t._id, t.practiceEnabled)}
+                                      className="text-xs px-2.5 py-1.5 rounded-lg font-semibold transition hover:opacity-80"
+                                      style={t.practiceEnabled
+                                        ? { background:'rgba(6,182,212,0.15)', color:'#22d3ee', border:'1px solid rgba(6,182,212,0.25)' }
+                                        : { background:'var(--bg-surface)', color:'var(--text-3)', border:'1px solid var(--border)' }}>
+                                      {t.practiceEnabled ? '✏️ Practice On' : '✏️ Practice Off'}
+                                    </button>
+                                    <button onClick={() => {
+                                      console.log('🚨 AUDIO TOGGLE BUTTON CLICKED!');
+                                      console.log('Test ID:', t._id);
+                                      console.log('Current audioEnabled:', t.audioEnabled);
+                                      toggleAudio(t._id, t.audioEnabled);
+                                    }}
+                                      className="text-xs px-2.5 py-1.5 rounded-lg font-semibold transition hover:opacity-80"
+                                      style={t.audioEnabled
+                                        ? { background:'rgba(16,185,129,0.12)', color:'#34d399', border:'1px solid rgba(16,185,129,0.22)' }
+                                        : { background:'rgba(239,68,68,0.12)', color:'#f87171', border:'1px solid rgba(239,68,68,0.22)' }}>
+                                      {t.audioEnabled ? '🎵 Audio On' : '🎵 Audio Off'}
+                                    </button>
+                                    <button onClick={() => openEditTest(t._id)}
+                                      className="text-xs px-2.5 py-1.5 rounded-lg font-semibold transition hover:opacity-80"
+                                      style={{ background:'rgba(16,185,129,0.12)', color:'#34d399', border:'1px solid rgba(16,185,129,0.22)' }}>
+                                      ✏️ Edit
+                                    </button>
+                                    <button onClick={() => setAudioReplaceFor(t._id)}
+                                      className="text-xs px-2.5 py-1.5 rounded-lg font-semibold transition hover:opacity-80"
+                                      style={{ background:'rgba(99,102,241,0.12)', color:'#818cf8', border:'1px solid rgba(99,102,241,0.20)' }}>
+                                      Replace Audio
+                                    </button>
+                                    <button onClick={() => loadLeaderboard(t._id)}
+                                      className="text-xs px-2.5 py-1.5 rounded-lg font-semibold transition hover:opacity-80"
+                                      style={{ background:'rgba(245,158,11,0.10)', color:'#fbbf24', border:'1px solid rgba(245,158,11,0.18)' }}>
+                                      Leaderboard
+                                    </button>
+                                    <button onClick={() => deleteTest(t._id)}
+                                      className="text-xs px-2.5 py-1.5 rounded-lg font-semibold transition hover:opacity-80"
+                                      style={{ background:'rgba(239,68,68,0.12)', color:'#f87171', border:'1px solid rgba(239,68,68,0.22)' }}>
+                                      Delete
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -1654,198 +1856,360 @@ export default function AdminDashboard() {
         )}
 
         {/* ═══ ASSIGNMENTS ════════════════════════════════════ */}
-        {tab === 'Assignments' && (() => {
-          const filteredTests = tests.filter(t =>
-            t.title.toLowerCase().includes(assignSearch.toLowerCase()) &&
-            (assignCategoryFilter === '' || 
-             (assignCategoryFilter === '__uncategorized__' && !t.category) ||
-             (assignCategoryFilter !== '__uncategorized__' && t.category?._id === assignCategoryFilter))
-          );
-          const allFiltered   = filteredTests.map(t => t._id);
-          const allChecked    = allFiltered.length > 0 && allFiltered.every(id => assignSelected.has(id));
+        {tab === 'Assignments' && (
+          <div className="space-y-6">
+            {(() => {
+              const filteredTests = tests.filter(t =>
+                t.title.toLowerCase().includes(assignSearch.toLowerCase()) &&
+                (assignCategoryFilter === '' || 
+                 (assignCategoryFilter === '__uncategorized__' && !t.category) ||
+                 (assignCategoryFilter !== '__uncategorized__' && t.category?._id === assignCategoryFilter))
+              );
+              const allFiltered   = filteredTests.map(t => t._id);
+              const allChecked    = allFiltered.length > 0 && allFiltered.every(id => assignSelected.has(id));
 
-          const toggleTest = (id) => {
-            setAssignSelected(prev => {
-              const next = new Set(prev);
-              next.has(id) ? next.delete(id) : next.add(id);
-              return next;
-            });
-          };
-          const toggleAll = () => {
-            setAssignSelected(prev => {
-              const next = new Set(prev);
-              if (allChecked) { allFiltered.forEach(id => next.delete(id)); }
-              else            { allFiltered.forEach(id => next.add(id));    }
-              return next;
-            });
-          };
+              const toggleTest = (id) => {
+                setAssignSelected(prev => {
+                  const next = new Set(prev);
+                  next.has(id) ? next.delete(id) : next.add(id);
+                  return next;
+                });
+              };
+              const toggleAll = () => {
+                setAssignSelected(prev => {
+                  const next = new Set(prev);
+                  if (allChecked) { allFiltered.forEach(id => next.delete(id)); }
+                  else            { allFiltered.forEach(id => next.add(id));    }
+                  return next;
+                });
+              };
 
-          return (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-              {/* ── Left: Assign form ─────────────────────────────── */}
-              <div style={cardStyle}>
-                <h2 className="text-lg mb-4" style={{ color:'var(--text-1)', fontWeight:800 }}>📌 Assign Tests to User</h2>
-                <form onSubmit={handleAssign} className="flex flex-col gap-3">
-
-                  {/* User picker */}
-                  <ThemedSelect required value={assignUserId}
-                    onChange={e => { setAssignUserId(e.target.value); setAssignMsg(null); }}>
-                    <option value="" style={{ background:'var(--bg-input)', color:'var(--text-1)' }}>Select user…</option>
-                    {users.map(u => (
-                      <option key={u._id} value={u._id} style={{ background:'var(--bg-input)', color:'var(--text-1)' }}>
-                        {u.name} ({u.email})
-                      </option>
-                    ))}
-                  </ThemedSelect>
-
-                  {/* Category filter */}
-                  <ThemedSelect value={assignCategoryFilter}
-                    onChange={e => { setAssignCategoryFilter(e.target.value); setAssignMsg(null); }}>
-                    <option value="">All Categories and Tests</option>
-                    <option value="__uncategorized__">Uncategorized Tests</option>
-                    {categories.map(c => (
-                      <option key={c._id} value={c._id}>
-                        {c.icon} {c.name}
-                      </option>
-                    ))}
-                  </ThemedSelect>
-
-
-                  <div className="flex items-center gap-2">
-                    <div className="relative flex-1">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm" style={{ color:'var(--text-3)' }}>🔍</span>
-                      <input
-                        type="text"
-                        placeholder={`Search ${tests.length} tests…`}
-                        value={assignSearch}
-                        onChange={e => setAssignSearch(e.target.value)}
-                        className="w-full pl-8 pr-3 py-2 rounded-xl text-sm outline-none"
-                        style={{
-                          background:'var(--bg-input)', color:'var(--text-1)',
-                          border:'1px solid var(--border)',
-                        }}
-                      />
-                    </div>
-                    <button type="button" onClick={toggleAll}
-                      className="shrink-0 px-3 py-2 rounded-xl text-xs font-bold transition active:scale-95"
-                      style={{
-                        background: allChecked ? 'rgba(239,68,68,0.12)' : 'rgba(99,102,241,0.12)',
-                        color:      allChecked ? '#f87171'               : '#818cf8',
-                        border:     allChecked ? '1px solid rgba(239,68,68,0.25)' : '1px solid rgba(99,102,241,0.25)',
-                      }}>
-                      {allChecked ? 'Deselect All' : 'Select All'}
-                    </button>
+              return (
+            <div className="space-y-6">
+              
+              {/* Header with stats */}
+              <div className="rounded-2xl p-6" style={{ background:'var(--bg-card)', border:'1px solid var(--border)' }}>
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h2 className="text-2xl font-black" style={{ color:'var(--text-1)' }}>📌 Test Assignments</h2>
+                    <p className="text-sm mt-1" style={{ color:'var(--text-3)' }}>Assign tests to users and manage existing assignments</p>
                   </div>
-
-                  {/* Selected count */}
-                  {assignSelected.size > 0 && (
-                    <div className="flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold"
-                      style={{ background:'rgba(99,102,241,0.10)', border:'1px solid rgba(99,102,241,0.20)', color:'#a5b4fc' }}>
-                      <span>✅ {assignSelected.size} test{assignSelected.size !== 1 ? 's' : ''} selected</span>
-                      <button type="button" onClick={() => setAssignSelected(new Set())}
-                        className="font-bold transition hover:opacity-70" style={{ color:'#f87171' }}>
-                        Clear
-                      </button>
+                  <div className="flex items-center gap-3">
+                    <div className="text-center px-4 py-2 rounded-xl" style={{ background:'var(--bg-surface)', border:'1px solid var(--border)' }}>
+                      <div className="text-lg font-black" style={{ color:'var(--text-1)' }}>{assignments.length}</div>
+                      <div className="text-xs font-semibold" style={{ color:'var(--text-3)' }}>Total Assignments</div>
                     </div>
-                  )}
+                    <div className="text-center px-4 py-2 rounded-xl" style={{ background:'var(--bg-surface)', border:'1px solid var(--border)' }}>
+                      <div className="text-lg font-black" style={{ color:'#34d399' }}>{Object.keys(assignmentsByUser).length}</div>
+                      <div className="text-xs font-semibold" style={{ color:'var(--text-3)' }}>Active Users</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
 
-                  {/* Scrollable test list */}
-                  <div className="overflow-y-auto rounded-xl"
-                    style={{ maxHeight:'320px', border:'1px solid var(--border)' }}>
-                    {filteredTests.length === 0 ? (
-                      <p className="text-center py-6 text-sm" style={{ color:'var(--text-3)' }}>No tests match.</p>
-                    ) : (
-                      filteredTests.map(t => {
-                        const checked = assignSelected.has(t._id);
-                        return (
-                          <label key={t._id}
-                            className="flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-all select-none"
-                            style={{
-                              borderBottom:'1px solid var(--border)',
-                              background: checked ? 'rgba(99,102,241,0.08)' : 'transparent',
-                            }}
-                            onMouseEnter={e => { if (!checked) e.currentTarget.style.background='var(--bg-surface)'; }}
-                            onMouseLeave={e => { e.currentTarget.style.background = checked ? 'rgba(99,102,241,0.08)' : 'transparent'; }}>
-                            {/* Custom checkbox */}
-                            <div className="shrink-0 w-4 h-4 rounded flex items-center justify-center transition-all"
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+
+                {/* ── Left: Assign form ─────────────────────────────── */}
+                <div className="space-y-4">
+                  <div className="rounded-2xl p-6" style={{ background:'var(--bg-card)', border:'1px solid var(--border)' }}>
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg"
+                        style={{ background:'linear-gradient(135deg,#4f46e5,#7c3aed)', color:'white' }}>
+                        ➕
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-black" style={{ color:'var(--text-1)' }}>Create New Assignment</h3>
+                        <p className="text-xs" style={{ color:'var(--text-3)' }}>Select user and tests to assign</p>
+                      </div>
+                    </div>
+
+                    <form onSubmit={handleAssign} className="space-y-4">
+                      {/* User Selection */}
+                      <div>
+                        <label className="block text-xs font-bold uppercase tracking-widest mb-2" style={{ color:'var(--text-3)' }}>
+                          👤 Select User
+                        </label>
+                        <ThemedSelect required value={assignUserId}
+                          onChange={e => { setAssignUserId(e.target.value); setAssignMsg(null); }}>
+                          <option value="" style={{ background:'var(--bg-input)', color:'var(--text-1)' }}>Choose a user to assign tests...</option>
+                          {users.map(u => (
+                            <option key={u._id} value={u._id} style={{ background:'var(--bg-input)', color:'var(--text-1)' }}>
+                              {u.name} ({u.email})
+                            </option>
+                          ))}
+                        </ThemedSelect>
+                      </div>
+
+                      {/* Test Selection Filters */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-bold uppercase tracking-widest mb-2" style={{ color:'var(--text-3)' }}>
+                            📂 Filter by Category
+                          </label>
+                          <ThemedSelect value={assignCategoryFilter}
+                            onChange={e => { setAssignCategoryFilter(e.target.value); setAssignMsg(null); }}>
+                            <option value="">All Categories</option>
+                            <option value="__uncategorized__">📂 Uncategorized</option>
+                            {categories.map(c => (
+                              <option key={c._id} value={c._id}>
+                                {c.icon} {c.name}
+                              </option>
+                            ))}
+                          </ThemedSelect>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold uppercase tracking-widest mb-2" style={{ color:'var(--text-3)' }}>
+                            🔍 Search Tests
+                          </label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm" style={{ color:'var(--text-3)' }}>🔍</span>
+                            <input
+                              type="text"
+                              placeholder={`Search ${tests.length} tests...`}
+                              value={assignSearch}
+                              onChange={e => setAssignSearch(e.target.value)}
+                              className="w-full pl-8 pr-3 py-2.5 rounded-xl text-sm outline-none"
                               style={{
-                                background: checked ? 'linear-gradient(135deg,#4f46e5,#7c3aed)' : 'var(--bg-input)',
-                                border: checked ? '1px solid rgba(99,102,241,0.5)' : '1px solid var(--border)',
-                              }}>
-                              {checked && <span className="text-white text-xs leading-none">✓</span>}
-                            </div>
-                            <input type="checkbox" className="sr-only" checked={checked}
-                              onChange={() => toggleTest(t._id)} />
-                            <div className="min-w-0 flex-1">
-                              <p className="text-sm font-medium truncate" style={{ color:'var(--text-1)' }}>{t.title}</p>
-                              <p className="text-xs" style={{ color:'var(--text-3)' }}>
-                                ⏱ {t.timer ?? 30} min
-                                {!t.isActive && <span style={{ color:'#f87171' }}> · inactive</span>}
+                                background:'var(--bg-input)', color:'var(--text-1)',
+                                border:'1px solid var(--border)',
+                              }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Bulk Actions */}
+                      <div className="flex items-center justify-between p-3 rounded-xl" 
+                        style={{ background:'var(--bg-surface)', border:'1px solid var(--border)' }}>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-semibold" style={{ color:'var(--text-2)' }}>
+                            {filteredTests.length} test{filteredTests.length !== 1 ? 's' : ''} available
+                          </span>
+                          {assignSelected.size > 0 && (
+                            <span className="px-2 py-1 rounded-full text-xs font-bold"
+                              style={{ background:'rgba(99,102,241,0.15)', color:'#818cf8' }}>
+                              {assignSelected.size} selected
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button type="button" onClick={toggleAll}
+                            className="px-3 py-1.5 rounded-lg text-xs font-bold transition hover:scale-105 active:scale-95"
+                            style={{
+                              background: allChecked ? 'rgba(239,68,68,0.12)' : 'rgba(99,102,241,0.12)',
+                              color:      allChecked ? '#f87171'               : '#818cf8',
+                              border:     allChecked ? '1px solid rgba(239,68,68,0.25)' : '1px solid rgba(99,102,241,0.25)',
+                            }}>
+                            {allChecked ? 'Deselect All' : 'Select All'}
+                          </button>
+                          {assignSelected.size > 0 && (
+                            <button type="button" onClick={() => setAssignSelected(new Set())}
+                              className="px-3 py-1.5 rounded-lg text-xs font-bold transition hover:scale-105 active:scale-95"
+                              style={{ background:'rgba(239,68,68,0.12)', color:'#f87171', border:'1px solid rgba(239,68,68,0.25)' }}>
+                              Clear
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Test Selection List */}
+                      <div>
+                        <label className="block text-xs font-bold uppercase tracking-widest mb-2" style={{ color:'var(--text-3)' }}>
+                          📝 Select Tests to Assign
+                        </label>
+                        <div className="rounded-xl overflow-hidden" style={{ border:'1px solid var(--border)', maxHeight:'300px' }}>
+                          {filteredTests.length === 0 ? (
+                            <div className="text-center py-8">
+                              <div className="text-3xl mb-2">📝</div>
+                              <p className="text-sm" style={{ color:'var(--text-3)' }}>
+                                {assignSearch || assignCategoryFilter ? 'No tests match your filters' : 'No tests available'}
                               </p>
                             </div>
-                          </label>
-                        );
-                      })
+                          ) : (
+                            <div className="overflow-y-auto" style={{ maxHeight:'300px' }}>
+                              {filteredTests.map((t, index) => {
+                                const checked = assignSelected.has(t._id);
+                                return (
+                                  <label key={t._id}
+                                    className="flex items-center gap-3 px-4 py-3 cursor-pointer transition-all select-none hover:scale-[1.01]"
+                                    style={{
+                                      borderBottom: index < filteredTests.length - 1 ? '1px solid var(--border)' : 'none',
+                                      background: checked ? 'rgba(99,102,241,0.08)' : 'transparent',
+                                    }}
+                                    onMouseEnter={e => { if (!checked) e.currentTarget.style.background='var(--bg-surface)'; }}
+                                    onMouseLeave={e => { e.currentTarget.style.background = checked ? 'rgba(99,102,241,0.08)' : 'transparent'; }}>
+                                    
+                                    {/* Enhanced checkbox */}
+                                    <div className="shrink-0 w-5 h-5 rounded-lg flex items-center justify-center transition-all"
+                                      style={{
+                                        background: checked ? 'linear-gradient(135deg,#4f46e5,#7c3aed)' : 'var(--bg-input)',
+                                        border: checked ? '2px solid rgba(99,102,241,0.5)' : '2px solid var(--border)',
+                                        boxShadow: checked ? '0 0 8px rgba(99,102,241,0.3)' : 'none',
+                                      }}>
+                                      {checked && <span className="text-white text-xs leading-none font-bold">✓</span>}
+                                    </div>
+                                    
+                                    <input type="checkbox" className="sr-only" checked={checked}
+                                      onChange={() => toggleTest(t._id)} />
+                                    
+                                    <div className="min-w-0 flex-1">
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <p className="text-sm font-bold truncate" style={{ color:'var(--text-1)' }}>{t.title}</p>
+                                        {!t.isActive && (
+                                          <span className="px-2 py-0.5 rounded-full text-xs font-bold"
+                                            style={{ background:'rgba(239,68,68,0.15)', color:'#f87171' }}>
+                                            Inactive
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="flex items-center gap-3 text-xs" style={{ color:'var(--text-3)' }}>
+                                        <span>⏱ {t.timer ?? 30} min</span>
+                                        {t.category && <span>{t.category.icon} {t.category.name}</span>}
+                                        <span className="px-2 py-0.5 rounded-full" 
+                                          style={{ background:'var(--bg-surface)', color:'var(--text-3)' }}>
+                                          {t.practiceEnabled ? '✏️ Practice' : '📝 Test Only'}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <Msg m={assignMsg}/>
+
+                      {/* Submit Button */}
+                      <button type="submit"
+                        disabled={!assignUserId || assignSelected.size === 0 || assignLoading}
+                        className="w-full text-white font-black py-3.5 rounded-xl transition-all hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2"
+                        style={{
+                          background: (!assignUserId || assignSelected.size === 0)
+                            ? 'rgba(99,102,241,0.25)'
+                            : 'linear-gradient(135deg,#4f46e5,#7c3aed)',
+                          opacity: assignLoading ? 0.7 : 1,
+                          cursor: (!assignUserId || assignSelected.size === 0) ? 'not-allowed' : 'pointer',
+                          boxShadow: (!assignUserId || assignSelected.size === 0) ? 'none' : '0 8px 25px rgba(99,102,241,0.35)',
+                        }}>
+                        {assignLoading ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/>
+                            Assigning Tests...
+                          </>
+                        ) : assignSelected.size > 0 ? (
+                          <>
+                            <span>📌</span>
+                            Assign {assignSelected.size} Test{assignSelected.size !== 1 ? 's' : ''} to User
+                          </>
+                        ) : (
+                          <>
+                            <span>⚠️</span>
+                            Select User and Tests First
+                          </>
+                        )}
+                      </button>
+                    </form>
+                  </div>
+                </div>
+
+                {/* ── Right: Current assignments ──────────────────────── */}
+                <div className="space-y-4">
+                  <div className="rounded-2xl p-6" style={{ background:'var(--bg-card)', border:'1px solid var(--border)' }}>
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg"
+                        style={{ background:'linear-gradient(135deg,#10b981,#34d399)', color:'white' }}>
+                        📋
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-black" style={{ color:'var(--text-1)' }}>Current Assignments</h3>
+                        <p className="text-xs" style={{ color:'var(--text-3)' }}>
+                          {assignments.length} assignment{assignments.length !== 1 ? 's' : ''} across {Object.keys(assignmentsByUser).length} user{Object.keys(assignmentsByUser).length !== 1 ? 's' : ''}
+                        </p>
+                      </div>
+                    </div>
+
+                    {assignments.length === 0 ? (
+                      <div className="text-center py-12">
+                        <div className="text-4xl mb-3">📋</div>
+                        <p className="text-sm font-semibold mb-2" style={{ color:'var(--text-2)' }}>No assignments yet</p>
+                        <p className="text-xs" style={{ color:'var(--text-3)' }}>
+                          Use the form on the left to assign tests to users
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3 max-h-[600px] overflow-y-auto">
+                        {Object.values(assignmentsByUser).map(({ user, assignments: userAssignments }) => (
+                          <div key={user._id} className="rounded-xl overflow-hidden" 
+                            style={{ background:'var(--bg-surface)', border:'1px solid var(--border)' }}>
+                            
+                            {/* User Header */}
+                            <div className="flex items-center justify-between p-4" 
+                              style={{ background:'var(--bg-card)', borderBottom:'1px solid var(--border)' }}>
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-black text-white"
+                                  style={{ background:'linear-gradient(135deg,#4f46e5,#7c3aed)' }}>
+                                  {user.name?.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}
+                                </div>
+                                <div>
+                                  <p className="font-bold text-sm" style={{ color:'var(--text-1)' }}>{user.name}</p>
+                                  <p className="text-xs" style={{ color:'var(--text-3)' }}>{user.email}</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="px-2 py-1 rounded-full text-xs font-bold"
+                                  style={{ background:'rgba(99,102,241,0.12)', color:'#818cf8' }}>
+                                  {userAssignments.length} test{userAssignments.length !== 1 ? 's' : ''}
+                                </span>
+                              </div>
+                            </div>
+                            
+                            {/* User's Assignments */}
+                            <div className="p-3 space-y-2">
+                              {userAssignments.map(a => (
+                                <div key={a._id} className="flex items-center justify-between p-3 rounded-lg transition-all hover:scale-[1.01]"
+                                  style={{ background:'var(--bg-card)', border:'1px solid var(--border)' }}>
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <p className="text-sm font-semibold truncate" style={{ color:'var(--text-1)' }}>
+                                        {a.testId?.title}
+                                      </p>
+                                      {!a.testId?.isActive && (
+                                        <span className="px-2 py-0.5 rounded-full text-xs font-bold"
+                                          style={{ background:'rgba(239,68,68,0.12)', color:'#f87171' }}>
+                                          Inactive
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-3 text-xs" style={{ color:'var(--text-3)' }}>
+                                      <span>⏱ {a.testId?.timer ?? 30} min</span>
+                                      {a.testId?.category && <span>{a.testId.category.icon} {a.testId.category.name}</span>}
+                                      <span>📅 {new Date(a.createdAt).toLocaleDateString('en-IN')}</span>
+                                    </div>
+                                  </div>
+                                  <button onClick={() => api.delete(`/admin/assign/${a._id}`).then(fetchAll)}
+                                    className="ml-3 px-3 py-1.5 rounded-lg text-xs font-bold transition-all hover:scale-105 active:scale-95"
+                                    style={{ background:'rgba(239,68,68,0.12)', color:'#f87171', border:'1px solid rgba(239,68,68,0.25)' }}>
+                                    🗑 Remove
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     )}
                   </div>
+                </div>
 
-                  <Msg m={assignMsg}/>
-
-                  <button type="submit"
-                    disabled={!assignUserId || assignSelected.size === 0 || assignLoading}
-                    className="w-full text-white font-bold py-2.5 rounded-xl transition active:scale-95"
-                    style={{
-                      background: (!assignUserId || assignSelected.size === 0)
-                        ? 'rgba(99,102,241,0.25)'
-                        : 'linear-gradient(135deg,#4f46e5,#7c3aed)',
-                      opacity: assignLoading ? 0.7 : 1,
-                      cursor: (!assignUserId || assignSelected.size === 0) ? 'not-allowed' : 'pointer',
-                      boxShadow: (!assignUserId || assignSelected.size === 0) ? 'none' : '0 0 20px rgba(99,102,241,0.35)',
-                    }}>
-                    {assignLoading
-                      ? 'Assigning…'
-                      : assignSelected.size > 0
-                        ? `Assign ${assignSelected.size} Test${assignSelected.size !== 1 ? 's' : ''}`
-                        : 'Select tests to assign'}
-                  </button>
-                </form>
               </div>
-
-              {/* ── Right: Current assignments ──────────────────────── */}
-              <div style={cardStyle}>
-                <h2 className="text-lg mb-4" style={{ color:'var(--text-1)', fontWeight:800 }}>Current Assignments ({assignments.length})</h2>
-                {assignments.length === 0 ? (
-                  <p className="text-sm text-center py-8" style={{ color:'var(--text-3)' }}>No assignments yet.</p>
-                ) : (
-                  <div className="space-y-2 max-h-[500px] overflow-y-auto">
-                    {assignments.map(a => (
-                      <div key={a._id} className="flex items-center justify-between rounded-xl p-3 transition"
-                        style={{ border:'1px solid var(--border)' }}
-                        onMouseEnter={e => e.currentTarget.style.background='var(--bg-card)'}
-                        onMouseLeave={e => e.currentTarget.style.background='transparent'}>
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold truncate" style={{ color:'var(--text-1)' }}>
-                            {a.userId?.name}
-                            <span style={{ color:'var(--text-3)', fontWeight:400 }}> · {a.userId?.email}</span>
-                          </p>
-                          <p className="text-xs truncate" style={{ color:'var(--text-2)' }}>
-                            {a.testId?.title}
-                            {!a.testId?.isActive && <span style={{ color:'var(--text-3)' }}> (inactive)</span>}
-                          </p>
-                        </div>
-                        <button onClick={() => api.delete(`/admin/assign/${a._id}`).then(fetchAll)}
-                          className="text-xs font-semibold ml-2 shrink-0"
-                          style={{ color:'#ef4444' }}>Remove</button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
             </div>
-          );
-        })()}
+              );
+            })()}
+          </div>
+        )}
 
         {/* ═══ RESULTS ════════════════════════════════════════ */}
         {tab === 'Results' && (() => {

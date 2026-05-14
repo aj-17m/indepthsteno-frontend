@@ -771,7 +771,7 @@ export default function TestPage() {
 
         {/* ── AUDIO PHASE ───────────────────────────── */}
         {phase === PHASES.AUDIO && (() => {
-          console.log('[TestPage AUDIO Phase] test.audioPath:', test.audioPath, 'hasAudio:', !!(test.audioPath && test.audioPath.trim?.()));
+          console.log('[TestPage AUDIO Phase] test.audioEnabled:', test.audioEnabled, 'test.audioPath:', test.audioPath, 'hasAudio:', test.hasAudio);
           return (
           <div className="w-full space-y-4 animate-fade-in-up">
 
@@ -790,12 +790,12 @@ export default function TestPage() {
               <div className="flex items-center gap-4 px-5 pt-5 pb-4"
                 style={{borderBottom:'1px solid rgba(255,255,255,0.07)'}}>
                 <div className="relative shrink-0">
-                  <div className="text-4xl animate-float-slow">{test.audioEnabled && test.audioPath && test.audioPath.trim() ? '🎧' : '⏭️'}</div>
-                  <div className="absolute inset-0 blur-lg opacity-40 text-4xl pointer-events-none">{test.audioEnabled && test.audioPath && test.audioPath.trim() ? '🎧' : '⏭️'}</div>
+                  <div className="text-4xl animate-float-slow">{test.hasAudio ? '🎧' : '⏭️'}</div>
+                  <div className="absolute inset-0 blur-lg opacity-40 text-4xl pointer-events-none">{test.hasAudio ? '🎧' : '⏭️'}</div>
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-bold mb-0.5 uppercase tracking-widest"
-                    style={{color:'rgba(165,180,252,0.6)'}}>{test.audioEnabled && test.audioPath && test.audioPath.trim() ? 'Now Playing' : 'Audio Status'}</p>
+                    style={{color:'rgba(165,180,252,0.6)'}}>{test.hasAudio ? 'Now Playing' : 'Audio Status'}</p>
                   <h2 className="font-black text-lg leading-tight text-white truncate">{test.title}</h2>
                   {test.category && (
                     <div className="flex items-center gap-1.5 mt-1">
@@ -860,12 +860,12 @@ export default function TestPage() {
                 style={{background:'rgba(0,0,0,0.15)'}}>
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" style={{animationDuration:'1.2s'}}/>
                 <p className="text-xs" style={{color:'rgba(255,255,255,0.40)'}}>
-                  {test.audioEnabled && test.audioPath && test.audioPath.trim() ? 'Listen as many times as needed, then click Start Typing below' : test.audioEnabled ? 'Audio will be uploaded soon. For more info, contact admin.' : 'Audio uploaded soon. For more information, contact admin.'}
+                  {test.hasAudio ? 'Listen as many times as needed, then click Start Typing below' : test.audioMessage || 'Audio will be uploaded soon. You can start typing practice now.'}
                 </p>
               </div>
             </div>
 
-            {test.audioEnabled && test.audioPath && test.audioPath.trim() ? (
+            {test.hasAudio ? (
               <>
                 <CustomAudioPlayer
                   src={resolveAudioUrl(test.audioPath)}
@@ -889,9 +889,9 @@ export default function TestPage() {
                   border:'1px solid rgba(99,102,241,0.25)',
                 }}>
                 <div className="text-5xl mb-3">⏰</div>
-                <p className="text-lg font-black text-white mb-2">{test.audioEnabled ? 'Audio Coming Soon 🎵' : 'Audio Uploaded Soon 🎵'}</p>
+                <p className="text-lg font-black text-white mb-2">Audio Coming Soon 🎵</p>
                 <p className="text-sm mb-4" style={{color:'rgba(255,255,255,0.60)'}}>
-                  {test.audioEnabled ? 'The audio file will be uploaded soon. Please check back later or contact admin for updates.' : 'The audio has been uploaded. For more information or to enable audio, please contact your admin.'}
+                  {test.audioMessage || 'The audio file will be uploaded soon. Please check back later or contact admin for updates.'}
                 </p>
                 <p className="text-xs" style={{color:'rgba(255,255,255,0.45)'}}>
                   You can proceed with typing practice now and practice with audio when it's available.

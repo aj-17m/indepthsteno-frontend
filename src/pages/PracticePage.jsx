@@ -27,6 +27,98 @@ function fmt(secs) {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
+/* ── Smooth Loading Component ─────────────────────────────────────────────── */
+function SmoothLoader({ message = "Loading...", size = "md" }) {
+  const sizeClasses = {
+    sm: "w-4 h-4",
+    md: "w-6 h-6", 
+    lg: "w-8 h-8"
+  };
+  
+  return (
+    <div className="flex flex-col items-center justify-center py-8 animate-fade-in">
+      <div className={`${sizeClasses[size]} rounded-full border-2 border-t-transparent animate-spin mb-3`}
+        style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }} />
+      <p className="text-sm font-medium animate-pulse" style={{ color: 'var(--text-2)' }}>
+        {message}
+      </p>
+    </div>
+  );
+}
+
+/* ── Breadcrumb Navigation ─────────────────────────────────────────────────── */
+function Breadcrumb({ steps, currentStep, onStepClick }) {
+  return (
+    <div className="flex items-center gap-2 mb-4 animate-slide-in-down">
+      {steps.map((step, index) => {
+        const isActive = index === currentStep;
+        const isCompleted = index < currentStep;
+        const isClickable = index < currentStep;
+        
+        return (
+          <div key={step.id} className="flex items-center gap-2">
+            <button
+              onClick={() => isClickable && onStepClick(index)}
+              disabled={!isClickable}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all duration-300 ${
+                isClickable ? 'hover:scale-105 cursor-pointer' : 'cursor-default'
+              }`}
+              style={{
+                background: isActive 
+                  ? 'var(--accent)' 
+                  : isCompleted 
+                    ? 'rgba(16,185,129,0.12)' 
+                    : 'var(--bg-surface)',
+                color: isActive 
+                  ? 'white' 
+                  : isCompleted 
+                    ? '#10b981' 
+                    : 'var(--text-3)',
+                border: `1px solid ${
+                  isActive 
+                    ? 'transparent' 
+                    : isCompleted 
+                      ? 'rgba(16,185,129,0.25)' 
+                      : 'var(--border)'
+                }`,
+                boxShadow: isActive ? '0 4px 12px var(--accent-glow)' : 'none'
+              }}>
+              <span className="text-sm">
+                {isCompleted ? '✓' : step.icon}
+              </span>
+              <span className="hidden sm:inline">{step.label}</span>
+            </button>
+            
+            {index < steps.length - 1 && (
+              <div className="w-6 h-0.5 rounded-full transition-all duration-500"
+                style={{ 
+                  background: isCompleted 
+                    ? 'linear-gradient(90deg, #10b981, rgba(16,185,129,0.3))' 
+                    : 'var(--border)' 
+                }} />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ── Animated Phase Container ─────────────────────────────────────────────── */
+function PhaseContainer({ children, phase, className = "" }) {
+  return (
+    <div 
+      key={phase}
+      className={`animate-fade-in-up ${className}`}
+      style={{ 
+        animationDuration: '0.4s',
+        animationTimingFunction: 'cubic-bezier(0.4, 0, 0.2, 1)'
+      }}>
+      {children}
+    </div>
+  );
+}
+
 /* ── status helpers ─────────────────────────────────────────────────────────── */
 const STATUS_META = {
   correct : { label:'Correct',   bg:'rgba(16,185,129,0.12)',  color:'#6ee7b7', dot:'#10b981' },
@@ -356,22 +448,45 @@ export default function PracticePage() {
   const timeLeft = Math.max(0, practiceSeconds - elapsed);
   const durationPills = [3, 5, 10, 15, 20, 30, 45, 60];
 
-  // ── load tests ─────────────────────────────────────────────────────────────
+  // Breadcrumb steps
+  const breadcrumbSteps = [
+    { id: 'browse', label: 'Select Test', icon: '📝' },
+    { id: 'setup', label: 'Configure', icon: '⚙️' },
+    { id: 'typing', label: 'Practice', icon: '⌨️' },
+    { id: 'result', label: 'Results', icon: '📊' }
+  ];
+  
+  const currentStepIndex = breadcrumbSteps.findIndex(step => step.id === sessionPhase);
+
+  // ── load tests with smooth loading ─────────────────────────────────────────
   useEffect(() => {
-    api.get('/user/practice-tests')
-      .then(r => {
+    const loadTests = async () => {
+      try {
+        const r = await api.get('/user/practice-tests');
         setTests(r.data);
-        if (testId) loadPracticeText(testId);
-        else setLoadingTests(false);
-      })
-      .catch(() => { setError('Failed to load tests'); setLoadingTests(false); });
+        if (testId) {
+          await loadPracticeText(testId);
+        } else {
+          setLoadingTests(false);
+        }
+      } catch (err) {
+        setError('Failed to load tests');
+        setLoadingTests(false);
+      }
+    };
+    
+    loadTests();
   }, [testId]);
 
   async function loadPracticeText(id) {
     setLoadingText(true);
     setLoadingTests(false);
     setError('');
+    
     try {
+      // Add a small delay for smooth transition
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
       const r = await api.get(`/user/tests/${id}/practice`);
       setSelectedTest(r.data);
       setPracticeMinutes(r.data.timer ?? 30);
@@ -400,6 +515,26 @@ export default function PracticePage() {
       if (focus) setTimeout(() => textareaRef.current?.focus(), 50);
     }
   }
+
+  // Smooth phase transitions
+  const transitionToPhase = useCallback((newPhase, delay = 0) => {
+    setTimeout(() => {
+      setSessionPhase(newPhase);
+    }, delay);
+  }, []);
+
+  const handleBreadcrumbClick = useCallback((stepIndex) => {
+    const targetPhase = breadcrumbSteps[stepIndex].id;
+    
+    if (targetPhase === 'browse') {
+      setSelectedTest(null);
+      transitionToPhase('browse');
+      resetTyping(false);
+    } else if (targetPhase === 'setup' && selectedTest) {
+      transitionToPhase('setup');
+      resetTyping(false);
+    }
+  }, [selectedTest, transitionToPhase]);
 
   useEffect(() => () => clearInterval(timerRef.current), []);
 
@@ -447,36 +582,53 @@ export default function PracticePage() {
     setStarted(false);
     if (textareaRef.current) {
       textareaRef.current.value = '';
-      setTimeout(() => textareaRef.current?.focus(), 50);
     }
-    setSessionPhase('typing');
-    setStarted(true);
-    startTimeRef.current = Date.now();
-    setElapsed(0);
-    timerRef.current = setInterval(() => {
-      if (!startTimeRef.current) return;
-      const nextElapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
-      setElapsed(nextElapsed);
-    }, 1000);
-  }, []);
+    
+    // Smooth transition to typing phase
+    transitionToPhase('typing', 100);
+    
+    setTimeout(() => {
+      setStarted(true);
+      startTimeRef.current = Date.now();
+      setElapsed(0);
+      timerRef.current = setInterval(() => {
+        if (!startTimeRef.current) return;
+        const nextElapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
+        setElapsed(nextElapsed);
+      }, 1000);
+      
+      // Focus textarea after transition
+      setTimeout(() => textareaRef.current?.focus(), 200);
+    }, 200);
+  }, [transitionToPhase]);
 
   const exitPractice = useCallback(() => {
     clearInterval(timerRef.current);
     timerRef.current = null;
     setSummary(null);
-    setSessionPhase('browse');
-    setSelectedTest(null);
-    resetTyping(false);
-  }, []);
+    
+    // Smooth transition back to browse
+    transitionToPhase('browse', 100);
+    
+    setTimeout(() => {
+      setSelectedTest(null);
+      resetTyping(false);
+    }, 200);
+  }, [transitionToPhase]);
 
   const backToSetup = useCallback(() => {
     clearInterval(timerRef.current);
     timerRef.current = null;
     setSubmitting(false);
     setSummary(null);
-    setSessionPhase('setup');
-    resetTyping(false);
-  }, []);
+    
+    // Smooth transition back to setup
+    transitionToPhase('setup', 100);
+    
+    setTimeout(() => {
+      resetTyping(false);
+    }, 200);
+  }, [transitionToPhase]);
 
   const submitPractice = useCallback(() => {
     if (!selectedTest || submitLockRef.current) return;
@@ -490,18 +642,26 @@ export default function PracticePage() {
       ? Math.max(1, Math.round((Date.now() - startTimeRef.current) / 1000))
       : Math.max(1, elapsed);
 
-    // Full SSC evaluation — runs client-side, nothing saved to DB
-    const eval_ = evaluateSSC(selectedTest.extractedText, currentText);
-    const speed  = timeTaken > 0
-      ? Math.round((eval_.typedWords / timeTaken) * 60)
-      : 0;
+    // Add a small delay for smooth transition
+    setTimeout(() => {
+      // Full SSC evaluation — runs client-side, nothing saved to DB
+      const eval_ = evaluateSSC(selectedTest.extractedText, currentText);
+      const speed  = timeTaken > 0
+        ? Math.round((eval_.typedWords / timeTaken) * 60)
+        : 0;
 
-    setSummary({ ...eval_, speed, timeTaken });
-    setElapsed(timeTaken);
-    setSessionPhase('result');
-    setSubmitting(false);
-    submitLockRef.current = false;
-  }, [selectedTest, typedText, elapsed]);
+      setSummary({ ...eval_, speed, timeTaken });
+      setElapsed(timeTaken);
+      
+      // Smooth transition to results
+      transitionToPhase('result', 100);
+      
+      setTimeout(() => {
+        setSubmitting(false);
+        submitLockRef.current = false;
+      }, 200);
+    }, 300);
+  }, [selectedTest, typedText, elapsed, transitionToPhase]);
 
   // keep ref in sync so auto-submit effects always call the latest version
   useEffect(() => { submitPracticeRef.current = submitPractice; }, [submitPractice]);
@@ -629,50 +789,74 @@ export default function PracticePage() {
   const activeCat = getCategoryForLayout(layout);
   const catObj    = LANGUAGE_CATEGORIES.find(c => c.value === activeCat);
 
-  // ── loading screen ─────────────────────────────────────────────────────────
-  if (loadingTests || loadingText) {
+  // ── loading screen with smooth animation ──────────────────────────────────
+  if (loadingTests) {
     return (
       <div className="min-h-screen flex items-center justify-center"
         style={{ background: 'var(--bg-base)' }}>
-        <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin"
-          style={{ borderColor: 'var(--accent)' }} />
+        <SmoothLoader message="Loading practice tests..." size="lg" />
       </div>
     );
   }
 
-  // ── render ──────────────────────────────────────────────────────────────────
+  // ── render with smooth transitions ─────────────────────────────────────────
   return (
     <div className="min-h-screen flex flex-col" style={{ background: 'var(--bg-base)', color: 'var(--text-1)' }}>
 
-      {/* ── Header ── */}
-      <div className="shrink-0 z-10 px-4 py-3 flex items-center gap-3"
+      {/* ── Enhanced Header with breadcrumb ── */}
+      <div className="shrink-0 z-10 px-4 py-3 space-y-3"
         style={{
           background: 'var(--bg-nav)',
           borderBottom: '1px solid var(--border)',
           backdropFilter: 'blur(12px)',
         }}>
-        <button type="button" onClick={() => navigate('/dashboard')}
-          className="w-9 h-9 rounded-xl flex items-center justify-center transition-all hover:scale-110"
-          style={{ background: 'var(--bg-surface)', color: 'var(--text-2)' }}
-          aria-label="Go to dashboard">
-          ←
-        </button>
-        <div className="flex-1 min-w-0">
-          <h1 className="text-base font-black" style={{ color: 'var(--text-1)' }}>Typing Practice</h1>
-          {selectedTest && (
-            <p className="text-xs truncate" style={{ color: 'var(--text-3)' }}>{selectedTest.title}</p>
-          )}
+        
+        {/* Top row with back button and title */}
+        <div className="flex items-center gap-3">
+          <button type="button" onClick={() => navigate('/dashboard')}
+            className="w-9 h-9 rounded-xl flex items-center justify-center transition-all hover:scale-110 active:scale-95"
+            style={{ background: 'var(--bg-surface)', color: 'var(--text-2)' }}
+            aria-label="Go to dashboard">
+            ←
+          </button>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-base font-black" style={{ color: 'var(--text-1)' }}>Typing Practice</h1>
+            {selectedTest && (
+              <p className="text-xs truncate" style={{ color: 'var(--text-3)' }}>{selectedTest.title}</p>
+            )}
+          </div>
+          <ThemeToggle />
         </div>
-        <ThemeToggle />
+        
+        {/* Breadcrumb navigation */}
+        {selectedTest && (
+          <Breadcrumb 
+            steps={breadcrumbSteps}
+            currentStep={currentStepIndex}
+            onStepClick={handleBreadcrumbClick}
+          />
+        )}
       </div>
+
+      {/* Loading overlay for text loading */}
+      {loadingText && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-2xl">
+            <SmoothLoader message="Loading practice content..." size="md" />
+          </div>
+        </div>
+      )}
 
       <div className={selectedTest && sessionPhase === 'typing'
         ? 'flex-1 flex flex-col min-h-0'
         : 'max-w-4xl mx-auto px-4 py-6 space-y-4 w-full'}>
 
+        {/* Welcome banner - only show when not typing */}
         {sessionPhase !== 'typing' && (
-          <div className="rounded-3xl p-5 sm:p-6 overflow-hidden relative" style={{ background:'linear-gradient(135deg,var(--bg-card),var(--bg-surface))', border:'1px solid var(--border)' }}>
-            <div className="absolute inset-0 opacity-60 pointer-events-none" style={{ background:'radial-gradient(circle at top right, rgba(99,102,241,0.18), transparent 38%), radial-gradient(circle at bottom left, rgba(16,185,129,0.10), transparent 34%)' }} />
+          <PhaseContainer phase="welcome" className="rounded-3xl p-5 sm:p-6 overflow-hidden relative" 
+            style={{ background:'linear-gradient(135deg,var(--bg-card),var(--bg-surface))', border:'1px solid var(--border)' }}>
+            <div className="absolute inset-0 opacity-60 pointer-events-none" 
+              style={{ background:'radial-gradient(circle at top right, rgba(99,102,241,0.18), transparent 38%), radial-gradient(circle at bottom left, rgba(16,185,129,0.10), transparent 34%)' }} />
             <div className="relative flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.24em]" style={{ color:'var(--text-3)' }}>Practice mode</p>
@@ -682,31 +866,34 @@ export default function PracticePage() {
                 </p>
               </div>
               <div className="flex gap-2 flex-wrap">
-                <span className="px-3 py-1.5 rounded-full text-xs font-semibold" style={{ background:'rgba(99,102,241,0.12)', color:'#a5b4fc', border:'1px solid rgba(99,102,241,0.22)' }}>
+                <span className="px-3 py-1.5 rounded-full text-xs font-semibold animate-pulse" 
+                  style={{ background:'rgba(99,102,241,0.12)', color:'#a5b4fc', border:'1px solid rgba(99,102,241,0.22)' }}>
                   {tests.length} assigned tests
                 </span>
-                <span className="px-3 py-1.5 rounded-full text-xs font-semibold" style={{ background:'rgba(16,185,129,0.10)', color:'#6ee7b7', border:'1px solid rgba(16,185,129,0.20)' }}>
+                <span className="px-3 py-1.5 rounded-full text-xs font-semibold" 
+                  style={{ background:'rgba(16,185,129,0.10)', color:'#6ee7b7', border:'1px solid rgba(16,185,129,0.20)' }}>
                   Local result only
                 </span>
               </div>
             </div>
-          </div>
+          </PhaseContainer>
         )}
 
         {error && (
-          <div className="p-3 rounded-xl text-sm"
+          <PhaseContainer phase="error" className="p-3 rounded-xl text-sm animate-shake"
             style={{ background: 'rgba(239,68,68,0.12)', color: '#f87171', border: '1px solid rgba(239,68,68,0.25)' }}>
             {error}
-          </div>
+          </PhaseContainer>
         )}
 
         {/* ── TEST SELECTOR ── */}
         {!selectedTest && (
-          <div className="rounded-3xl p-5 sm:p-6" style={{ background:'var(--bg-card)', border:'1px solid var(--border)' }}>
+          <PhaseContainer phase="browse" className="rounded-3xl p-5 sm:p-6" 
+            style={{ background:'var(--bg-card)', border:'1px solid var(--border)' }}>
             <div className="flex items-center justify-between gap-3 mb-4">
               <div>
                 <p className="text-sm font-semibold" style={{ color: 'var(--text-2)' }}>
-              Select a test to practice
+                  Select a test to practice
                 </p>
                 <p className="text-xs mt-1" style={{ color:'var(--text-3)' }}>Tap one passage to open the setup screen.</p>
               </div>
@@ -715,17 +902,25 @@ export default function PracticePage() {
               {tests.map(({ test, assignmentId }) => (
                 <button key={assignmentId}
                   onClick={() => loadPracticeText(test._id)}
-                  className="text-left p-4 rounded-2xl transition-all hover:scale-[1.02] active:scale-100"
-                  style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+                  className="text-left p-4 rounded-2xl transition-all duration-300 hover:scale-[1.02] hover:shadow-lg active:scale-100 group"
+                  style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.borderColor = 'var(--accent)';
+                    e.currentTarget.style.boxShadow = '0 8px 25px rgba(99,102,241,0.15)';
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.borderColor = 'var(--border)';
+                    e.currentTarget.style.boxShadow = 'none';
+                  }}>
                   <div className="flex items-center gap-2 mb-1.5">
-                    <span className="text-xl">📝</span>
+                    <span className="text-xl group-hover:animate-bounce">📝</span>
                     <span className="font-bold text-sm leading-snug" style={{ color: 'var(--text-1)' }}>
                       {test.title}
                     </span>
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
                     {test.category && (
-                      <span className="text-xs px-2 py-0.5 rounded-full"
+                      <span className="text-xs px-2 py-0.5 rounded-full transition-colors"
                         style={{ background: 'var(--bg-surface)', color: 'var(--text-3)' }}>
                         {test.category.icon} {test.category.name}
                       </span>
@@ -734,21 +929,27 @@ export default function PracticePage() {
                       {test.timer} min
                     </span>
                   </div>
-                  <div className="mt-3 text-xs font-semibold" style={{ color:'var(--text-3)' }}>Open setup →</div>
+                  <div className="mt-3 text-xs font-semibold group-hover:text-blue-400 transition-colors" 
+                    style={{ color:'var(--text-3)' }}>
+                    Open setup →
+                  </div>
                 </button>
               ))}
               {tests.length === 0 && (
-                <p className="text-sm col-span-2 text-center py-10" style={{ color: 'var(--text-3)' }}>
-                  No tests assigned yet.
-                </p>
+                <div className="col-span-2 text-center py-10">
+                  <div className="text-4xl mb-3 animate-bounce">📚</div>
+                  <p className="text-sm" style={{ color: 'var(--text-3)' }}>
+                    No tests assigned yet.
+                  </p>
+                </div>
               )}
             </div>
-          </div>
+          </PhaseContainer>
         )}
 
         {/* ── SETUP AREA ── */}
-        {selectedTest && sessionPhase !== 'typing' && (
-          <div className="space-y-4">
+        {selectedTest && sessionPhase === 'setup' && (
+          <PhaseContainer phase="setup" className="space-y-4">
             <div className="rounded-3xl p-5 sm:p-6" style={{ background:'var(--bg-card)', border:'1px solid var(--border)' }}>
               <div className="flex flex-wrap items-start gap-4 justify-between">
                 <div className="min-w-0">
@@ -758,7 +959,7 @@ export default function PracticePage() {
                 </div>
                 <button
                   onClick={exitPractice}
-                  className="text-xs px-3 py-2 rounded-xl font-semibold transition-all hover:scale-105"
+                  className="text-xs px-3 py-2 rounded-xl font-semibold transition-all hover:scale-105 active:scale-95"
                   style={{ background: 'var(--bg-surface)', color: 'var(--text-2)', border: '1px solid var(--border)' }}>
                   Change Test
                 </button>
@@ -917,7 +1118,7 @@ export default function PracticePage() {
                 </button>
               </div>
             </div>
-          </div>
+          </PhaseContainer>
         )}
 
         {/* ── PRACTICE AREA ── */}
