@@ -28,6 +28,9 @@ function Waveform({ playing }) {
 }
 
 export default function CustomAudioPlayer({ src, onEnded, autoPlay = false }) {
+  // Safety guard: don't render if no src
+  if (!src || !src.trim?.()) return null;
+  
   const audioRef  = useRef(null);
   const [playing,   setPlaying]   = useState(false);
   const [duration,  setDuration]  = useState(0);

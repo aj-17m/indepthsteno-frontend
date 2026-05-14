@@ -835,6 +835,11 @@ export default function AdminDashboard() {
     fetchAll();
   };
 
+  const toggleAudio = async (id, cur) => {
+    await api.put(`/admin/tests/${id}`, { audioEnabled: !cur });
+    fetchAll();
+  };
+
   const deleteTest = async (id) => {
     if (!confirm('Delete this test and all assignments?')) return;
     await api.delete(`/admin/tests/${id}`); fetchAll();
@@ -1154,8 +1159,11 @@ export default function AdminDashboard() {
                                   : { background:'var(--bg-surface)', color:'var(--text-3)', border:'1px solid var(--border)' }}>
                                 {t.practiceEnabled ? '✏️ Practice On' : '✏️ Practice Off'}
                               </span>
-                              <span className="text-xs" style={{ color:'var(--text-3)' }}>
-                                {t.audioType === 'uploaded' ? '🎵 Custom audio' : '🔇 No audio'}
+                              <span className="text-xs px-2 py-0.5 rounded-full font-semibold"
+                                style={t.audioEnabled
+                                  ? { background:'rgba(16,185,129,0.15)', color:'#34d399' }
+                                  : { background:'rgba(239,68,68,0.12)', color:'#f87171' }}>
+                                {t.audioEnabled ? '🎵 Audio On' : '🎵 Audio Off'}
                               </span>
                               <span className="text-xs" style={{ color:'var(--text-3)' }}>⏱ {t.timer ?? 30} min</span>
                               <span className="text-xs" style={{ color:'var(--text-3)' }}>
@@ -1179,6 +1187,13 @@ export default function AdminDashboard() {
                               ? { background:'rgba(6,182,212,0.15)', color:'#22d3ee', border:'1px solid rgba(6,182,212,0.25)' }
                               : { background:'var(--bg-surface)', color:'var(--text-3)', border:'1px solid var(--border)' }}>
                             {t.practiceEnabled ? '✏️ Practice On' : '✏️ Practice Off'}
+                          </button>
+                          <button onClick={() => toggleAudio(t._id, t.audioEnabled)}
+                            className="text-xs px-2.5 py-1.5 rounded-lg font-semibold transition hover:opacity-80"
+                            style={t.audioEnabled
+                              ? { background:'rgba(16,185,129,0.12)', color:'#34d399', border:'1px solid rgba(16,185,129,0.22)' }
+                              : { background:'rgba(239,68,68,0.12)', color:'#f87171', border:'1px solid rgba(239,68,68,0.22)' }}>
+                            {t.audioEnabled ? '🎵 Audio On' : '🎵 Audio Off'}
                           </button>
                           <button onClick={() => openEditTest(t._id)}
                             className="text-xs px-2.5 py-1.5 rounded-lg font-semibold transition hover:opacity-80"
