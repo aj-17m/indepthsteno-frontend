@@ -492,6 +492,11 @@ function LeaderboardTab({ tests }) {
   const [selectedTest, setSelectedTest] = useState(null);
   const [entries,      setEntries]      = useState([]);
   const [loading,      setLoading]      = useState(false);
+  const [searchQuery,  setSearchQuery]  = useState('');
+
+  const filteredTests = tests.filter(({ test }) =>
+    test.title.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   const medal    = r => r===1?'🥇':r===2?'🥈':r===3?'🥉':r;
   const errColor = p => p<=5?'#34d399':p<=10?'#fbbf24':'#f87171';
@@ -601,6 +606,25 @@ function LeaderboardTab({ tests }) {
         </span>
       </div>
 
+      {/* Search bar */}
+      {tests.length > 0 && (
+        <div className="relative">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm" style={{ color:'var(--text-3)' }}>🔍</span>
+          <input
+            type="text"
+            placeholder="Search tests..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className="w-full pl-8 pr-4 py-2.5 rounded-xl text-sm outline-none"
+            style={{
+              background:'var(--bg-surface)',
+              color:'var(--text-1)',
+              border:'1px solid var(--border)',
+            }}
+          />
+        </div>
+      )}
+
       {tests.length === 0 ? (
         <div className="rounded-3xl p-16 text-center"
           style={{background:'var(--bg-surface)', border:'1px solid var(--border)'}}>
@@ -608,9 +632,21 @@ function LeaderboardTab({ tests }) {
           <p className="font-black text-lg mb-1" style={{color:'var(--text-2)'}}>No tests yet</p>
           <p className="text-sm" style={{color:'var(--text-3)'}}>Tests will appear here once assigned</p>
         </div>
+      ) : filteredTests.length === 0 ? (
+        <div className="rounded-3xl p-12 text-center"
+          style={{background:'var(--bg-surface)', border:'1px solid var(--border)'}}>
+          <div className="text-5xl mb-3 animate-float">🔍</div>
+          <p className="font-black mb-1" style={{color:'var(--text-2)'}}>No tests found</p>
+          <p className="text-sm" style={{color:'var(--text-3)'}}>Try a different search term</p>
+          <button onClick={() => setSearchQuery('')}
+            className="text-sm font-bold mt-3 px-4 py-2 rounded-xl transition"
+            style={{background:'var(--bg-card)', color:'var(--text-2)', border:'1px solid var(--border)'}}>
+            Clear search
+          </button>
+        </div>
       ) : (
         <div className="space-y-3">
-          {tests.map(({ test }, i) => (
+          {filteredTests.map(({ test }, i) => (
             <button key={test._id}
               className="w-full text-left rounded-2xl p-4 transition-all hover:scale-[1.01] hover:-translate-y-0.5 active:scale-[0.99] animate-fade-in-up shimmer-card"
               style={{
