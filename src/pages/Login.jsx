@@ -288,35 +288,20 @@ export default function Login() {
         {/* Main content */}
         <div className="relative z-10 text-center max-w-md animate-tilt-in">
 
-          {/* 3-D logo with orbiting dots */}
-          <div className="relative mx-auto mb-8 w-28 h-28 animate-float-slow">
-            <div className="absolute inset-0 rounded-3xl blur-2xl scale-110 opacity-30 gradient-bg" />
-            <div className="relative w-28 h-28 rounded-3xl gradient-bg flex items-center justify-center shadow-2xl inner-glow"
-              style={{ boxShadow: '0 0 50px var(--accent-glow), 0 20px 50px rgba(0,0,0,0.4)' }}>
-              <svg className="w-14 h-14 text-white drop-shadow-lg" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M19 5v14H5V5h14m0-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z" />
-              </svg>
-            </div>
-            <div className="absolute w-3 h-3 rounded-full"
-              style={{
-                top: '50%', left: '50%', marginTop: '-6px', marginLeft: '-6px',
-                background: 'var(--border-hi)', boxShadow: '0 0 10px var(--accent-glow)',
-                transformOrigin: '-34px -34px',
-                animation: 'orbit 4s linear infinite',
-              }} />
-            <div className="absolute w-2 h-2 rounded-full"
-              style={{
-                top: '50%', left: '50%', marginTop: '-4px', marginLeft: '-4px',
-                background: 'var(--tip-text)', boxShadow: '0 0 8px var(--accent-glow)',
-                transformOrigin: '-28px 28px',
-                animation: 'orbit 6s linear infinite reverse',
-              }} />
+          {/* Logo */}
+          <div className="mb-6 animate-scale-in">
+            <img 
+              src="/mainlogo.jpeg" 
+              alt="Indepth Stenography Logo" 
+              className="mx-auto h-20 w-auto object-contain"
+              style={{ maxWidth: '200px' }}
+            />
           </div>
 
           {/* Title */}
           <h1 className="text-5xl font-black mb-3 tracking-tight text-gradient-animate"
             style={{ color: 'var(--text-1)' }}>
-            Steno Practice
+            Indepth Stenography
           </h1>
           <p className="text-base mb-8 font-medium tracking-wide" style={{ color: 'var(--text-3)' }}>
             Hindi SSC Stenography Platform
@@ -368,14 +353,16 @@ export default function Login() {
 
           {/* Mobile logo */}
           <div className="lg:hidden text-center mb-8 animate-fade-in-up">
-            <div className="w-16 h-16 gradient-bg rounded-2xl flex items-center justify-center mx-auto mb-4 animate-float"
-              style={{ boxShadow: '0 0 30px var(--accent-glow)' }}>
-              <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M19 5v14H5V5h14m0-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z" />
-              </svg>
+            <div className="mb-4">
+              <img 
+                src="/mainlogo.jpeg" 
+                alt="Indepth Stenography Logo" 
+                className="mx-auto h-16 w-auto object-contain"
+                style={{ maxWidth: '150px' }}
+              />
             </div>
-            <h1 className="text-2xl font-black" style={{ color: 'var(--text-1)' }}>Steno Practice</h1>
-            <p className="text-sm mt-1" style={{ color: 'var(--text-3)' }}>Hindi SSC Platform</p>
+            <h1 className="text-2xl font-black" style={{ color: 'var(--text-1)' }}>Indepth Stenography</h1>
+            <p className="text-sm mt-1" style={{ color: 'var(--text-3)' }}>Hindi SSC Stenography Platform</p>
           </div>
 
           {/* Card */}

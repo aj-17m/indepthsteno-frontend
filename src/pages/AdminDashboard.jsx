@@ -1188,10 +1188,14 @@ export default function AdminDashboard() {
       <header className="gradient-bg text-white shadow-lg sticky top-0 z-20">
         <div className="max-w-6xl mx-auto px-6 py-3 flex justify-between items-center">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center text-sm">⚙️</div>
+            <img 
+              src="/mainlogo.jpeg" 
+              alt="Indepth Stenography Logo" 
+              className="h-8 w-auto object-contain"
+            />
             <div>
               <h1 className="font-bold text-lg leading-tight">Admin Panel</h1>
-              <p className="text-white/60 text-xs">Hindi SSC Stenography</p>
+              <p className="text-white/60 text-xs">Indepth Stenography</p>
             </div>
           </div>
           <div className="flex items-center gap-3">

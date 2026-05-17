@@ -24,23 +24,21 @@ export default function PageLoader({ message = 'Loading…' }) {
 
       {/* Logo */}
       <div className="relative animate-float-slow">
-        <div
-          className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-2xl"
-          style={{
-            background: 'linear-gradient(-45deg,#4f46e5,#7c3aed,#2563eb)',
-            backgroundSize: '300%',
-            animation: 'gradient-x 4s ease infinite, float-slow 5s ease-in-out infinite',
-            boxShadow: '0 0 40px rgba(99,102,241,0.55), 0 16px 40px rgba(0,0,0,0.5)',
-          }}
-        >
-          <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M19 5v14H5V5h14m0-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z" />
-          </svg>
+        <div className="mb-2">
+          <img 
+            src="/mainlogo.jpeg" 
+            alt="Indepth Stenography Logo" 
+            className="h-16 w-auto object-contain mx-auto"
+            style={{ 
+              filter: 'drop-shadow(0 0 20px rgba(99,102,241,0.4))',
+              maxWidth: '120px'
+            }}
+          />
         </div>
         {/* Pulse ring */}
         <div
           className="absolute inset-0 rounded-2xl border-2 animate-ping-slow"
-          style={{ borderColor: 'rgba(99,102,241,0.5)' }}
+          style={{ borderColor: 'rgba(99,102,241,0.3)' }}
         />
       </div>
 
@@ -77,7 +75,7 @@ export default function PageLoader({ message = 'Loading…' }) {
             animation: 'border-spin 4s linear infinite',
           }}
         >
-          Steno Practice
+          Indepth Stenography
         </p>
         <p className="text-xs mt-1 animate-pulse" style={{ color: 'rgba(255,255,255,0.30)' }}>
           {message}

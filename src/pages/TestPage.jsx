@@ -513,7 +513,7 @@ export default function TestPage() {
         <div className="max-w-3xl mx-auto px-6 py-4 flex items-center justify-between gap-4">
           <div className="min-w-0">
             <h1 className="font-black text-white text-base truncate">{test.title}</h1>
-            <p className="text-white/35 text-xs mt-0.5">Hindi Stenography Test</p>
+            <p className="text-white/35 text-xs mt-0.5">Indepth Stenography Test</p>
           </div>
 
           {/* Phase badge or timer */}

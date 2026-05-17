@@ -820,7 +820,7 @@ export default function PracticePage() {
             ←
           </button>
           <div className="flex-1 min-w-0">
-            <h1 className="text-base font-black" style={{ color: 'var(--text-1)' }}>Typing Practice</h1>
+            <h1 className="text-base font-black" style={{ color: 'var(--text-1)' }}>Indepth Stenography Practice</h1>
             {selectedTest && (
               <p className="text-xs truncate" style={{ color: 'var(--text-3)' }}>{selectedTest.title}</p>
             )}
